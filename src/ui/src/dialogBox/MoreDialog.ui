@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MoreDialog</class>
+ <widget class="QDialog" name="MoreDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>151</width>
+    <height>197</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>151</width>
+    <height>197</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>151</width>
+    <height>197</height>
+   </size>
+  </property>
+  <property name="cursor">
+   <cursorShape>ArrowCursor</cursorShape>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QDialog {
+                background-color: white;       /* 白色背景 */
+                border-radius: 2px;           /* 圆角半径，可调整 */
+                border: 1px solid #dddddd;     /* 可选：添加边框 */
+}
+
+/* 正常状态 - 无边框 */
+        QPushButton {
+            text-align: left;
+            border: none;               /* 去除边框 */
+            background-color: transparent; /* 透明背景 */
+            color: #333333;             /* 文字颜色 */
+            padding: 2px 10px;          /* 内边距 */
+	        font: 11pt &quot;等线&quot;;
+        }
+        
+        /* 鼠标悬停状态 - 绿色背景 */
+        QPushButton:hover {
+            background-color: rgb(1, 184, 91);  /* 绿色背景 */
+            color: white;               /* 白色文字，提高对比度 */
+            border-radius: 2px;         /* 轻微圆角，可选 */
+        }
+        
+        /* 按下状态 - 深绿色，增强交互感 */
+        QPushButton:pressed {
+            background-color: #3d8b40;  /* 深绿色 */
+        }</string>
+  </property>
+  <property name="sizeGripEnabled">
+   <bool>false</bool>
+  </property>
+  <property name="modal">
+   <bool>false</bool>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="spacing">
+    <number>0</number>
+   </property>
+   <property name="leftMargin">
+    <number>6</number>
+   </property>
+   <property name="topMargin">
+    <number>6</number>
+   </property>
+   <property name="rightMargin">
+    <number>5</number>
+   </property>
+   <property name="bottomMargin">
+    <number>5</number>
+   </property>
+   <item>
+    <widget class="QPushButton" name="pushButton">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>37</height>
+      </size>
+     </property>
+     <property name="text">
+      <string>聊天文件</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="pushButton_2">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>37</height>
+      </size>
+     </property>
+     <property name="text">
+      <string>聊天记录管理</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="pushButton_3">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>37</height>
+      </size>
+     </property>
+     <property name="text">
+      <string>锁定</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="pushButton_4">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>37</height>
+      </size>
+     </property>
+     <property name="text">
+      <string>意见反馈</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="pushButton_5">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>37</height>
+      </size>
+     </property>
+     <property name="text">
+      <string>设置</string>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

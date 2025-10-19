@@ -1,0 +1,14 @@
+build/
+tests/
+scripts/
+docs/
+*.o
+*.obj
+*.exe
+CMakeFiles/
+CMakeCache.txt
+*.vscde
+CMakeLists.txt.user
+res/
+.vscode/
+.idea/

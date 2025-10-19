@@ -1,0 +1,118 @@
+#ifndef WECHATWIDGET_H
+#define WECHATWIDGET_H
+
+#include <QWidget>
+#include <QPointer>
+#include <QMenu>
+#include <QPushButton>
+#include <QToolButton>
+
+namespace Ui {
+class WeChatWidget;
+}
+class QSplitter;
+class QFrame;
+class RightPopover;
+class AddDialog ;
+class MoreDialog;
+class FloatingDialog;
+class PersonalInfoDialog;
+class MediaDialog;
+class CustomListView;
+class ChatListModel;
+class ChatListDelegate;
+class ConversationsDelegate;
+class ConversationsModel;
+
+class WeChatWidget : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit WeChatWidget(QWidget *parent = nullptr);
+    ~WeChatWidget();
+
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event)override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
+private slots:
+
+    void on_contactsToolButton_clicked();
+
+    void on_collectionToolButton_clicked();
+
+    void on_rightDialogToolButton_clicked();
+
+    void rightStackedWidgetPageSizeChange();
+
+    void on_addToolButton_clicked();
+
+    void on_moreToolButton_clicked();
+
+    void on_floatingToolButton_clicked();
+
+    void on_avatarPushButton_clicked();
+
+    void on_chatInterfaceToolButton_clicked();
+
+    void on_closeButton_clicked();
+
+    void on_maxWinButton_clicked();
+
+    void on_minWinButton_clicked();
+
+    void on_pinButton_clicked();
+
+private:
+    //自定义窗口相关
+    bool m_isOnTop; // 记录当前是否置顶
+    int m_titleBarHeight;
+    bool m_isMaximized;
+    bool m_isDragging;
+    bool m_isDraggingMax;
+    enum Edge { None, Left, Right, Top, Bottom, TopLeft, TopRight, BottomLeft, BottomRight };
+    Edge m_currentEdge;
+    bool m_isResizing;
+    int  m_borderWidth;
+    QRect m_windowGeometry;       // 用于存储窗口几何信息
+    QPoint m_dragStartPosition;   // 用于存储鼠标拖动起始位置
+    // 辅助函数
+    Edge getEdge(const QPoint &pos);
+    void updateCursorShape(const QPoint &pos);
+    void handleResize(const QPoint &currentGlobalPos);// 处理拉伸（参数为当前鼠标全局坐标）
+    void handleDrag(const QPoint &currentGlobalPos);// 处理移动（参数为当前鼠标全局坐标）
+
+
+    Ui::WeChatWidget *ui;
+    //弹窗
+    QPointer<RightPopover> rightPopover;
+    QPointer<AddDialog> addDialog;
+    QPointer<MoreDialog> moreDialog;
+    QPointer<FloatingDialog> floatingDialog;
+    QPointer<PersonalInfoDialog> personalInfoDialog;
+    QPointer<MediaDialog> mediaDialog;
+
+    //聊天列表
+    ChatListModel *chatListModel;
+    ChatListDelegate *chatListDelegate;
+    CustomListView *chatListView;
+
+    // 聊天消息页
+    ConversationsModel *conversationsModel;
+    ConversationsDelegate *conversationsDelegate;
+    CustomListView *conversationsView;
+
+
+    void updateSendButtonStyle();//更新发送按钮样式
+
+
+
+};
+
+#endif // WECHATWIDGET_H

@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>AddDialog</class>
+ <widget class="QDialog" name="AddDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>111</width>
+    <height>112</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>111</width>
+    <height>112</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>111</width>
+    <height>112</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QDialog {
+                background-color: white;       /* 白色背景 */
+                border-radius: 2px;           /* 圆角半径，可调整 */
+                border: 1px solid #dddddd;     /* 可选：添加边框 */
+}
+
+/* 正常状态 - 无边框 */
+        QPushButton {
+            border: none;               /* 去除边框 */
+            background-color: transparent; /* 透明背景 */
+            color: #333333;             /* 文字颜色 */
+           /* padding: 8px 16px;          /* 内边距 */
+	        font: 10pt &quot;等线&quot;;
+        }
+        
+        /* 鼠标悬停状态 - 绿色背景 */
+        QPushButton:hover {
+            background-color: rgb(1, 184, 91);  /* 绿色背景 */
+            color: white;               /* 白色文字，提高对比度 */
+            border-radius: 2px;         /* 轻微圆角，可选 */
+        }
+        
+        /* 按下状态 - 深绿色，增强交互感 */
+        QPushButton:pressed {
+            background-color: #3d8b40;  /* 深绿色 */
+        }</string>
+  </property>
+  <property name="sizeGripEnabled">
+   <bool>false</bool>
+  </property>
+  <property name="modal">
+   <bool>false</bool>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="spacing">
+    <number>0</number>
+   </property>
+   <property name="leftMargin">
+    <number>3</number>
+   </property>
+   <property name="topMargin">
+    <number>2</number>
+   </property>
+   <property name="rightMargin">
+    <number>2</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item>
+    <widget class="QPushButton" name="pushButton">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>34</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>34</height>
+      </size>
+     </property>
+     <property name="styleSheet">
+      <string notr="true"/>
+     </property>
+     <property name="text">
+      <string>发起群聊</string>
+     </property>
+     <property name="icon">
+      <iconset resource="../../res/icon.qrc">
+       <normaloff>:/a/icons/聊天.svg</normaloff>:/a/icons/聊天.svg</iconset>
+     </property>
+     <property name="iconSize">
+      <size>
+       <width>22</width>
+       <height>22</height>
+      </size>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="pushButton_2">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>34</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>34</height>
+      </size>
+     </property>
+     <property name="styleSheet">
+      <string notr="true"/>
+     </property>
+     <property name="text">
+      <string>添加好友</string>
+     </property>
+     <property name="icon">
+      <iconset resource="../../res/icon.qrc">
+       <normaloff>:/a/icons/添加好友.svg</normaloff>:/a/icons/添加好友.svg</iconset>
+     </property>
+     <property name="iconSize">
+      <size>
+       <width>18</width>
+       <height>18</height>
+      </size>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="pushButton_3">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>34</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>34</height>
+      </size>
+     </property>
+     <property name="styleSheet">
+      <string notr="true"/>
+     </property>
+     <property name="text">
+      <string>新建笔记</string>
+     </property>
+     <property name="icon">
+      <iconset resource="../../res/icon.qrc">
+       <normaloff>:/a/icons/笔记本.svg</normaloff>:/a/icons/笔记本.svg</iconset>
+     </property>
+     <property name="iconSize">
+      <size>
+       <width>22</width>
+       <height>22</height>
+      </size>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources>
+  <include location="../../res/icon.qrc"/>
+ </resources>
+ <connections/>
+</ui>
