@@ -24,7 +24,7 @@ QString DatabaseSchema::getCreateTableCurrentUser() {
             gender INTEGER DEFAULT 0,                -- 性别（0:未知 1:男 2:女）
             region TEXT,                             -- 地区（如"中国-北京"）
             signature TEXT,                          -- 个性签名
-            is_current INTEGER DEFAULT 1             -- 标记当前登录用户
+            is_current INTEGER DEFAULT 0             -- 标记当前登录用户
         )
     )";
 }
@@ -46,7 +46,6 @@ QString DatabaseSchema::getCreateTableContacts() {
             is_starred INTEGER DEFAULT 0,          -- 是否星标
             is_blocked INTEGER DEFAULT 0,          -- 是否拉黑
             add_time INTEGER,                      -- 添加时间戳
-            last_contact_time INTEGER,             -- 最后联系时间戳
 
             -- 外键关联用户表
             FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
@@ -63,10 +62,11 @@ QString DatabaseSchema::getCreateTableGroupMembers() {
         CREATE TABLE IF NOT EXISTS group_members (
             group_id INTEGER NOT NULL,                   -- 群ID
             user_id INTEGER NOT NULL,                    -- 用户ID
+
             nickname TEXT NOT NULL,                      -- 群内昵称
             role INTEGER DEFAULT 0,                      -- 群内角色（0:普通 1:管理员 2:群主）
             join_time INTEGER,                           -- 加入时间戳
-            is_contact INTEGER DEFAULT 0,                -- 是否为当前用户联系人
+            is_contact INTEGER DEFAULT 0,                -- 是否为当前用户的联系人
 
             -- 复合主键：群ID+用户ID唯一标识群成员
             PRIMARY KEY (group_id, user_id),
@@ -90,8 +90,8 @@ QString DatabaseSchema::getCreateTableGroups() {
             avatar TEXT,                                 -- 群头像远程URL
             avatar_local_path TEXT,                      -- 群头像本地缓存路径
             announcement TEXT,                           -- 群公告
-            member_count INTEGER DEFAULT 0,              -- 群成员数量
-            max_members INTEGER DEFAULT 500              -- 最大成员限制
+            max_members INTEGER DEFAULT 500,             -- 最大成员限制
+            group_note TEXT                             -- 群备注
         )
     )";
 }

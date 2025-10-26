@@ -22,7 +22,6 @@ public:
     static QString getCreateTableConversations();
     static QString getCreateTableMessages();
     static QString getCreateTableMediaCache();
-
     static QString getCreateIndexes();
 };
 

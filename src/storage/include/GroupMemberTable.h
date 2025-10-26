@@ -2,7 +2,7 @@
 #define GROUPMEMBERTABLE_H
 
 #include <QObject>
-#include <QSqlDatabase>
+#include <QtSql/QSqlDatabase>
 #include <QJsonObject>
 #include <QJsonArray>
 
@@ -17,7 +17,6 @@ public:
     bool saveGroupMember(const QJsonObject& member);
     bool updateGroupMember(const QJsonObject& member);
     bool deleteGroupMember(qint64 groupId, qint64 userId);
-    bool deleteAllGroupMembers(qint64 groupId);
     QJsonArray getGroupMembers(qint64 groupId);
     QJsonObject getGroupMember(qint64 groupId, qint64 userId);
     QJsonArray searchGroupMembers(qint64 groupId, const QString& keyword);
@@ -32,6 +31,12 @@ public:
 
 private:
     QSqlDatabase m_database;
+
+    QJsonObject memberFromQuery(const QSqlQuery& query);
+
+    bool  deleteAllGroupMembers(qint64 groupId);
+
+
 };
 
 #endif // GROUPMEMBERTABLE_H

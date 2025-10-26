@@ -1,4 +1,3 @@
-// ===== loginandregisterdialog.h =====
 #ifndef LOGINANDREGISTERDIALOG_H
 #define LOGINANDREGISTERDIALOG_H
 
@@ -35,9 +34,7 @@ private slots:
     void on_SMSLoginButton_clicked();
     void on_passwordLoginButton_clicked();
     void on_registerButton_clicked();
-
     void on_wechatNumButton_clicked();
-
     void on_registerButton_2_clicked();
 
 private:

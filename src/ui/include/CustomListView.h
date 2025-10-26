@@ -4,20 +4,67 @@
 #include <QListView>
 #include <QTimer>
 #include <QScrollBar>
-#include <QGraphicsOpacityEffect>
 #include <QPropertyAnimation>
+#include <QGraphicsOpacityEffect>
+#include <QMenu>
+#include <QAction>
 
 class CustomListView: public QListView
 {
     Q_OBJECT
 
 public:
+
+    enum ListType {
+        ConversationList,  // 会话列表
+        MessageList        // 消息列表
+    };
+
     explicit CustomListView(QWidget *parent = nullptr);
     ~CustomListView();
-
     void setMarginRight(int value);
 
+    // 设置列表类型，用于决定显示哪种右键菜单
+    void setListType(ListType type) { m_listType = type; }
+    ListType listType() const { return m_listType; }
+
+    // 设置会话列表的右键菜单信号连接
+    void setConversationMenuSignals(QObject *receiver, const char *toggleTopSlot,
+                                    const char *markUnreadSlot, const char *toggleMuteSlot,
+                                    const char *openWindowSlot, const char *deleteSlot);
+
+    // 设置消息列表的右键菜单信号连接
+    void setMessageMenuSignals(QObject *receiver, const char *copySlot,
+                               const char *zoomSlot, const char *translateSlot,
+                               const char *searchSlot, const char *forwardSlot,
+                               const char *favoriteSlot, const char *remindSlot,
+                               const char *multiSelectSlot, const char *quoteSlot,
+                               const char *pinSlot, const char *deleteSlot);
+
+signals:
+    // 会话列表菜单信号
+    void conversationToggleTop(qint64 conversationId);
+    void conversationMarkAsUnread(qint64 conversationId);
+    void conversationToggleMute(qint64 conversationId);
+    void conversationOpenInWindow(qint64 conversationId);
+    void conversationDelete(qint64 conversationId);
+
+    // 消息列表菜单信号
+    void messageCopy();
+    void messageZoom();
+    void messageTranslate();
+    void messageSearch();
+    void messageForward();
+    void messageFavorite();
+    void messageRemind();
+    void messageMultiSelect();
+    void messageQuote();
+    void messagePin();
+    void messageDelete();
+
+
 protected:
+    void contextMenuEvent(QContextMenuEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void enterEvent(QEnterEvent *event)override;
     void leaveEvent(QEvent *event)override;
@@ -57,8 +104,37 @@ private:
     const int scrollStep = 5;     // 每帧滚动的像素
     const int frameInterval = 10; // 每帧间隔（定时器间隔）
 
+private:
+    void createConversationContextMenu();
+    void createMessageContextMenu();
+    void showContextMenu(const QPoint &pos);
 
+    ListType m_listType;
 
+    // 会话列表菜单
+    QMenu *m_conversationMenu;
+    QAction *m_toggleTopAction;
+    QAction *m_markAsUnreadAction;
+    QAction *m_toggleMuteAction;
+    QAction *m_openInWindowAction;
+
+    // 消息列表菜单
+    QMenu *m_messageMenu;
+    QAction *m_copyAction;
+    QAction *m_zoomAction;
+    QAction *m_translateAction;
+    QAction *m_searchAction;
+    QAction *m_forwardAction;
+    QAction *m_favoriteAction;
+    QAction *m_remindAction;
+    QAction *m_multiSelectAction;
+    QAction *m_quoteAction;
+    QAction *m_pinAction;
+
+    // 菜单公用
+    QAction *m_deleteAction;
+
+    qint64 m_currentConversationId;
 
 
 };

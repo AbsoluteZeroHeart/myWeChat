@@ -2,7 +2,7 @@
 #define MEDIACACHETABLE_H
 
 #include <QObject>
-#include <QSqlDatabase>
+#include <QtSql/QSqlDatabase>
 #include <QJsonObject>
 #include <QJsonArray>
 
@@ -31,6 +31,8 @@ public:
 
 private:
     QSqlDatabase m_database;
+    QJsonObject mediaFromQuery(const QSqlQuery& query);
+
 };
 
 #endif // MEDIACACHETABLE_H

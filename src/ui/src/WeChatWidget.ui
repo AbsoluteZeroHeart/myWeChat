@@ -589,6 +589,9 @@ QToolButton:disabled {
      <property name="handleWidth">
       <number>0</number>
      </property>
+     <property name="childrenCollapsible">
+      <bool>false</bool>
+     </property>
      <widget class="QFrame" name="leftFrame">
       <property name="minimumSize">
        <size>
@@ -799,7 +802,7 @@ QToolButton:disabled {
             <number>0</number>
            </property>
            <item>
-            <widget class="CustomListView" name="chatList_View">
+            <widget class="CustomListView" name="chatListView">
              <property name="styleSheet">
               <string notr="true">QListView{
 	background-color: rgb(255, 255, 255);
@@ -1200,6 +1203,9 @@ QToolButton:disabled {
              </property>
              <property name="handleWidth">
               <number>0</number>
+             </property>
+             <property name="childrenCollapsible">
+              <bool>false</bool>
              </property>
              <widget class="QWidget" name="messageWidget" native="true">
               <property name="minimumSize">

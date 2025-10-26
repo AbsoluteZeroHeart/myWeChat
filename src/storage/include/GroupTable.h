@@ -2,7 +2,7 @@
 #define GROUPTABLE_H
 
 #include <QObject>
-#include <QSqlDatabase>
+#include <QtSql/QSqlDatabase>
 #include <QJsonObject>
 #include <QJsonArray>
 
@@ -19,16 +19,18 @@ public:
     bool deleteGroup(qint64 groupId);
     QJsonArray getAllGroups();
     QJsonObject getGroup(qint64 groupId);
-    bool clearGroups();
+    QString getLocalAvatarPath(qint64 groupId);
     
     // 群组信息更新
     bool updateGroupAnnouncement(qint64 groupId, const QString& announcement);
-    bool updateGroupMemberCount(qint64 groupId, int memberCount);
     bool updateGroupAvatar(qint64 groupId, const QString& avatarUrl, const QString& localPath = "");
     QJsonArray searchGroups(const QString& keyword);
 
 private:
     QSqlDatabase m_database;
+
+    QJsonObject groupFromQuery(const QSqlQuery& query);
+
 };
 
 #endif // GROUPTABLE_H

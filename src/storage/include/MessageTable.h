@@ -2,7 +2,7 @@
 #define MESSAGETABLE_H
 
 #include <QObject>
-#include <QSqlDatabase>
+#include <QtSql/QSqlDatabase>
 #include <QJsonObject>
 #include <QJsonArray>
 
@@ -22,16 +22,16 @@ public:
     QJsonObject getLastMessage(qint64 conversationId);
     bool clearMessages();
     bool clearConversationMessages(qint64 conversationId);
-    
-    // 消息状态管理
-    int getUnreadCount(qint64 conversationId);
-    QJsonArray getUnreadMessages(qint64 conversationId);
-    bool markMessagesAsRead(qint64 conversationId);
-    QJsonArray getMessagesByTimeRange(qint64 conversationId, qint64 startTime, qint64 endTime);
     int getMessageCount(qint64 conversationId);
+
+    // 消息状态管理
+    QJsonArray getMessagesByTimeRange(qint64 conversationId, qint64 startTime, qint64 endTime);
 
 private:
     QSqlDatabase m_database;
+
+    QJsonObject messageFromQuery(const QSqlQuery& query);
+
 };
 
 #endif // MESSAGETABLE_H

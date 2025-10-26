@@ -2,7 +2,7 @@
 #define CONVERSATIONTABLE_H
 
 #include <QObject>
-#include <QSqlDatabase>
+#include <QtSql/QSqlDatabase>
 #include <QJsonObject>
 #include <QJsonArray>
 
@@ -15,21 +15,16 @@ public:
     
     // 会话管理
     bool saveConversation(const QJsonObject& conversation);
-    bool updateConversation(const QJsonObject& conversation);
+    bool updateConversationPartial(const QJsonObject& conversation);
     bool deleteConversation(qint64 conversationId);
     QJsonArray getAllConversations();
     QJsonObject getConversation(qint64 conversationId);
     QJsonObject getConversationByTarget(qint64 targetId, int type);
-    bool clearConversations();
+    qint64 getConversationTargetId(qint64 conversationId);
     
     // 会话状态管理
     bool updateConversationLastMessage(qint64 conversationId, const QString& content, qint64 time);
-    bool updateUnreadCount(qint64 conversationId, int count);
     bool setConversationTop(qint64 conversationId, bool top);
-    bool incrementUnreadCount(qint64 conversationId);
-    bool resetUnreadCount(qint64 conversationId);
-    QJsonArray getTopConversations();
-    QJsonArray getUnreadConversations();
 
 private:
     QSqlDatabase m_database;

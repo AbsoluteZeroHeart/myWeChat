@@ -1,18 +1,10 @@
 # 收集源文件
-file(GLOB UI_SOURCES
+file(GLOB_RECURSE UI_SOURCES
     "src/*.cpp"
-    "src/media/*.cpp"
-    "src/dialogBox/*.cpp"
-    "src/chatList/*.cpp"
-    "src/chatConversations/*.cpp"
 )
 
-file(GLOB UI_HEADERS   
+file(GLOB_RECURSE UI_HEADERS
     "include/*.h"
-    "include/media/*.h"
-    "include/dialogBox/*.h"
-    "include/chatList/*.h"
-    "include/chatConversations/*.h"
 )
 
 # 收集资源文件
@@ -57,16 +49,8 @@ target_include_directories(myWeChat PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/media
     ${CMAKE_CURRENT_SOURCE_DIR}/include/dialogBox
     ${CMAKE_CURRENT_SOURCE_DIR}/include/chatList
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/chatConversations
-    ${CMAKE_CURRENT_SOURCE_DIR}/../common/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../controller/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../network/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../storage/include
-)
-
-# 添加编译定义
-target_compile_definitions(myWeChat PRIVATE
-    QT_VERSION_MAJOR=${QT_VERSION_MAJOR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/chatConversation
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/Delegate
 )
 
 # 链接Qt库
@@ -78,11 +62,9 @@ target_link_libraries(myWeChat PRIVATE
 
 # 链接其他模块的库（根据你的实际库名调整）
 target_link_libraries(myWeChat PRIVATE
-#     common_lib
-#     core_lib
-#     net_lib
-    storage
-#     media_lib
+    common
+    controller
+    media
 )
 
 # 平台特定设置
@@ -107,10 +89,6 @@ install(TARGETS myWeChat
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-# Qt6 最终化
-if(QT_VERSION_MAJOR EQUAL 6)
-    qt_finalize_executable(myWeChat)
-endif()
 
 
 

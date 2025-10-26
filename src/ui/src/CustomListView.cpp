@@ -1,9 +1,12 @@
 #include "customlistview.h"
 #include <QMouseEvent>
+#include <QContextMenuEvent>
 #include <QResizeEvent>
+#include "ConversationTypes.h"
 
 CustomListView::CustomListView(QWidget *parent)
-    :QListView(parent), isSyncing(false), remainingScroll(0)
+    : QListView(parent), isSyncing(false), remainingScroll(0),
+    m_listType(ConversationList), m_currentConversationId(0)
 {
     // 基本行为
     setSelectionMode(QAbstractItemView::SingleSelection);
@@ -114,11 +117,14 @@ CustomListView::CustomListView(QWidget *parent)
     scrollTimer->setSingleShot(false);
     connect(scrollTimer, &QTimer::timeout, this, &CustomListView::onScrollTimerTimeout);
 
-
+    createConversationContextMenu();
+    createMessageContextMenu();
 }
 
 CustomListView::~CustomListView()
 {
+    delete m_conversationMenu;
+    delete m_messageMenu;
     delete hideTimer;
     delete scrollTimer;
 }
@@ -330,7 +336,220 @@ void CustomListView::setMarginRight(int value)
 }
 
 
+void CustomListView::createConversationContextMenu()
+{
+    m_conversationMenu = new QMenu(this);
 
+    // 设置菜单样式
+    m_conversationMenu->setStyleSheet(R"(
+        QMenu {
+            background-color: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 4px;
+            font-family: "Microsoft YaHei";
+            font-size: 14px;
+        }
+        QMenu::item {
+            height: 32px;
+            padding: 0px 12px;
+            border-radius: 4px;
+            margin: 2px;
+            color: #333333;
+        }
+        QMenu::item:selected:!disabled {
+            background-color: #4CAF50;
+            color: white;
+        }
+        QMenu::item[class="delete"] {
+            color: #ff4444;
+        }
+        QMenu::item[class="delete"]:selected:!disabled {
+            background-color: #ff4444;
+            color: white;
+        }
+        QMenu::separator {
+            height: 1px;
+            background: #e0e0e0;
+            margin: 4px 8px;
+        }
+    )");
+
+    m_toggleTopAction = new QAction("置顶", this);
+    m_markAsUnreadAction = new QAction("标为未读", this);
+    m_toggleMuteAction = new QAction("消息免打扰", this);
+    m_openInWindowAction = new QAction("独立窗口显示", this);
+    m_deleteAction = new QAction("删除", this);
+
+    // 为删除项设置特殊类名
+    m_deleteAction->setProperty("class", "delete");
+
+    m_conversationMenu->addAction(m_toggleTopAction);
+    m_conversationMenu->addAction(m_markAsUnreadAction);
+    m_conversationMenu->addAction(m_toggleMuteAction);
+    m_conversationMenu->addSeparator();
+    m_conversationMenu->addAction(m_openInWindowAction);
+    m_conversationMenu->addSeparator();
+    m_conversationMenu->addAction(m_deleteAction);
+
+    // 连接信号
+    connect(m_toggleTopAction, &QAction::triggered, this, [this]() {
+        emit conversationToggleTop(m_currentConversationId);
+    });
+    connect(m_markAsUnreadAction, &QAction::triggered, this, [this]() {
+        emit conversationMarkAsUnread(m_currentConversationId);
+    });
+    connect(m_toggleMuteAction, &QAction::triggered, this, [this]() {
+        emit conversationToggleMute(m_currentConversationId);
+    });
+    connect(m_openInWindowAction, &QAction::triggered, this, [this]() {
+        emit conversationOpenInWindow(m_currentConversationId);
+    });
+    connect(m_deleteAction, &QAction::triggered, this, [this]() {
+        emit conversationDelete(m_currentConversationId);
+    });
+}
+
+void CustomListView::createMessageContextMenu()
+{
+    m_messageMenu = new QMenu(this);
+
+    // 设置菜单样式
+    m_messageMenu->setStyleSheet(R"(
+        QMenu {
+            background-color: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 4px;
+            font-family: "Microsoft YaHei";
+            font-size: 14px;
+        }
+        QMenu::item {
+            height: 32px;
+            padding: 0px 12px;
+            border-radius: 4px;
+            margin: 2px;
+            color: #333333;
+        }
+        QMenu::item:selected:!disabled {
+            background-color: #4CAF50;
+            color: white;
+        }
+        QMenu::item[class="delete"] {
+            color: #ff4444;
+        }
+        QMenu::item[class="delete"]:selected:!disabled {
+            background-color: #ff4444;
+            color: white;
+        }
+        QMenu::separator {
+            height: 1px;
+            background: #e0e0e0;
+            margin: 4px 8px;
+        }
+    )");
+
+    m_copyAction = new QAction("复制", this);
+    m_zoomAction = new QAction("放大查看", this);
+    m_translateAction = new QAction("翻译", this);
+    m_searchAction = new QAction("搜索", this);
+    m_forwardAction = new QAction("转发", this);
+    m_favoriteAction = new QAction("收藏", this);
+    m_remindAction = new QAction("提醒", this);
+    m_multiSelectAction = new QAction("多选", this);
+    m_quoteAction = new QAction("引用", this);
+    m_pinAction = new QAction("置顶", this);
+    m_deleteAction = new QAction("删除", this);
+
+    // 为删除项设置特殊类名
+    m_deleteAction->setProperty("class", "delete");
+
+    m_messageMenu->addAction(m_copyAction);
+    m_messageMenu->addAction(m_zoomAction);
+    m_messageMenu->addAction(m_translateAction);
+    m_messageMenu->addAction(m_searchAction);
+    m_messageMenu->addSeparator();
+    m_messageMenu->addAction(m_forwardAction);
+    m_messageMenu->addAction(m_favoriteAction);
+    m_messageMenu->addAction(m_remindAction);
+    m_messageMenu->addSeparator();
+    m_messageMenu->addAction(m_multiSelectAction);
+    m_messageMenu->addAction(m_quoteAction);
+    m_messageMenu->addAction(m_pinAction);
+    m_messageMenu->addSeparator();
+    m_messageMenu->addAction(m_deleteAction);
+
+    // 连接信号
+    connect(m_copyAction, &QAction::triggered, this, &CustomListView::messageCopy);
+    connect(m_zoomAction, &QAction::triggered, this, &CustomListView::messageZoom);
+    connect(m_translateAction, &QAction::triggered, this, &CustomListView::messageTranslate);
+    connect(m_searchAction, &QAction::triggered, this, &CustomListView::messageSearch);
+    connect(m_forwardAction, &QAction::triggered, this, &CustomListView::messageForward);
+    connect(m_favoriteAction, &QAction::triggered, this, &CustomListView::messageFavorite);
+    connect(m_remindAction, &QAction::triggered, this, &CustomListView::messageRemind);
+    connect(m_multiSelectAction, &QAction::triggered, this, &CustomListView::messageMultiSelect);
+    connect(m_quoteAction, &QAction::triggered, this, &CustomListView::messageQuote);
+    connect(m_pinAction, &QAction::triggered, this, &CustomListView::messagePin);
+    connect(m_deleteAction, &QAction::triggered, this, &CustomListView::messageDelete);
+}
+
+void CustomListView::contextMenuEvent(QContextMenuEvent *event)
+{
+    QModelIndex index = indexAt(event->pos());
+    if (!index.isValid()) {
+        return;
+    }
+
+    if (m_listType == ConversationList) {
+        // 会话列表：
+        m_currentConversationId = index.data(ConversationIdRole).toLongLong();
+        if (m_currentConversationId != 0) {
+
+            bool isTop = index.data(IsTopRole).toBool();
+            m_toggleTopAction->setText(isTop ? "取消置顶" : "置顶");
+
+            int unreadCount = index.data(UnreadCountRole).toInt();
+            m_markAsUnreadAction->setText(unreadCount > 0 ? "标记为已读" : "标记为未读");
+
+            m_conversationMenu->exec(event->globalPos());
+        }
+    } else if (m_listType == MessageList) {
+        // 消息列表：
+        m_messageMenu->exec(event->globalPos());
+    }
+}
+// 设置会话列表菜单信号连接的便捷方法
+void CustomListView::setConversationMenuSignals(QObject *receiver, const char *toggleTopSlot,
+                                                const char *markUnreadSlot, const char *toggleMuteSlot,
+                                                const char *openWindowSlot, const char *deleteSlot)
+{
+    if (toggleTopSlot) connect(this, SIGNAL(conversationToggleTop(qint64)), receiver, toggleTopSlot);
+    if (markUnreadSlot) connect(this, SIGNAL(conversationMarkAsUnread(qint64)), receiver, markUnreadSlot);
+    if (toggleMuteSlot) connect(this, SIGNAL(conversationToggleMute(qint64)), receiver, toggleMuteSlot);
+    if (openWindowSlot) connect(this, SIGNAL(conversationOpenInWindow(qint64)), receiver, openWindowSlot);
+    if (deleteSlot) connect(this, SIGNAL(conversationDelete(qint64)), receiver, deleteSlot);
+}
+
+// 设置消息列表菜单信号连接的便捷方法
+void CustomListView::setMessageMenuSignals(QObject *receiver, const char *copySlot,
+                                           const char *zoomSlot, const char *translateSlot,
+                                           const char *searchSlot, const char *forwardSlot,
+                                           const char *favoriteSlot, const char *remindSlot,
+                                           const char *multiSelectSlot, const char *quoteSlot,
+                                           const char *pinSlot, const char *deleteSlot)
+{
+    if (copySlot) connect(this, SIGNAL(messageCopy()), receiver, copySlot);
+    if (zoomSlot) connect(this, SIGNAL(messageZoom()), receiver, zoomSlot);
+    if (translateSlot) connect(this, SIGNAL(messageTranslate()), receiver, translateSlot);
+    if (searchSlot) connect(this, SIGNAL(messageSearch()), receiver, searchSlot);
+    if (forwardSlot) connect(this, SIGNAL(messageForward()), receiver, forwardSlot);
+    if (favoriteSlot) connect(this, SIGNAL(messageFavorite()), receiver, favoriteSlot);
+    if (remindSlot) connect(this, SIGNAL(messageRemind()), receiver, remindSlot);
+    if (multiSelectSlot) connect(this, SIGNAL(messageMultiSelect()), receiver, multiSelectSlot);
+    if (quoteSlot) connect(this, SIGNAL(messageQuote()), receiver, quoteSlot);
+    if (pinSlot) connect(this, SIGNAL(messagePin()), receiver, pinSlot);
+    if (deleteSlot) connect(this, SIGNAL(messageDelete()), receiver, deleteSlot);
+}
 
 
 

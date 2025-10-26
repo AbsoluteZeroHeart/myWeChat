@@ -2,7 +2,7 @@
 #define USERTABLE_H
 
 #include <QObject>
-#include <QSqlDatabase>
+#include <QtSql/QSqlDatabase>
 #include <QJsonObject>
 #include <QJsonArray>
 
@@ -24,6 +24,9 @@ public:
     bool updateUser(const QJsonObject& user);
     bool deleteUser(qint64 userId);
     QJsonObject getUser(qint64 userId);
+    qint64 getCurrentUserId();
+    QString getAvatarLocalPath(qint64 userId);
+    QString getNickname(qint64 userId);
     QJsonObject getUserByAccount(const QString& account);
     QJsonArray getAllUsers();
     bool userExists(qint64 userId);

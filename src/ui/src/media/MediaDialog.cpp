@@ -18,7 +18,7 @@
 #include "ThumbnailDelegate.h"
 #include "ThumbnailPreviewModel.h"
 #include "CustomListView.h"
-#include "AsyncThumbnailManager.h"
+#include "ThumbnailManager.h"
 
 MediaDialog::MediaDialog(QWidget *parent)
     : QDialog(parent)
@@ -537,7 +537,7 @@ void MediaDialog::onCurrentChanged(const QModelIndex &current, const QModelIndex
         if(fileInfo.exists() && fileInfo.isFile()){
             playMedia(sourcePath, mediaType);
         }else{
-            QPixmap warningPix = AsyncThumbnailManager::getWarningThumbnail(thumbPath, mediaType);
+            QPixmap warningPix = ThumbnailManager::getWarningThumbnail(thumbPath, mediaType);
             playPixmap(warningPix);
         }
     }

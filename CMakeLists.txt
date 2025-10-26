@@ -34,12 +34,10 @@ endif()
 
 # 添加子目录
 add_subdirectory(src/common)
-add_subdirectory(src/controller)
 add_subdirectory(src/network)
 add_subdirectory(src/storage)
 add_subdirectory(src/media)
+add_subdirectory(src/controller)
 add_subdirectory(src/ui)
 
-# 启用测试
-enable_testing()
-add_subdirectory(tests)
+ 

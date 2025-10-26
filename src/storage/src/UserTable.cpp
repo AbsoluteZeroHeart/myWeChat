@@ -154,6 +154,78 @@ QJsonObject UserTable::getUser(qint64 userId) {
     return QJsonObject();
 }
 
+qint64 UserTable::getCurrentUserId()
+{
+    if (!m_database.isValid() || !m_database.isOpen()) {
+        qWarning() << "Database is not valid or not open (getCurrentUserId)";
+        return -1;
+    }
+
+    // 准备查询当前用户的ID
+    QSqlQuery query(m_database);
+    query.prepare("SELECT user_id FROM users WHERE is_current = 1 LIMIT 1");
+
+    if (!query.exec()) {
+        qWarning() << "Failed to query current user ID: " << query.lastError().text();
+        return -1;
+    }
+
+    if (query.next()) {
+        return query.value("user_id").toLongLong();
+    } else {
+        qWarning() << "No current user found in database";
+        return -1;
+    }
+}
+
+QString UserTable::getAvatarLocalPath(qint64 userId)
+{
+    if (!m_database.isValid() || !m_database.isOpen()) {
+        qWarning() << "Database is not valid or not open (getAvatarLocalPath)";
+        return "";
+    }
+
+    QSqlQuery query(m_database);
+    query.prepare("SELECT avatar_local_path FROM users WHERE user_id = ?");
+    query.addBindValue(userId); // 绑定用户ID参数
+
+    if (!query.exec()) {
+        qWarning() << "Failed to get avatar local path: " << query.lastError().text();
+        return "";
+    }
+
+    if (query.next()) {
+        return query.value("avatar_local_path").toString();
+    } else {
+        qWarning() << "No user found for ID: " << userId;
+        return "";
+    }
+}
+
+QString UserTable::getNickname(qint64 userId)
+{
+    if (!m_database.isValid() || !m_database.isOpen()) {
+        qWarning() << "Database is not valid or not open (getNickname)";
+        return "";
+    }
+
+    QSqlQuery query(m_database);
+    query.prepare("SELECT nickname FROM users WHERE user_id = ?");
+    query.addBindValue(userId);
+
+    if (!query.exec()) {
+        qWarning() << "Failed to get nickname: " << query.lastError().text();
+        return "";
+    }
+
+    if (query.next()) {
+        return query.value("nickname").toString();
+    } else {
+        qWarning() << "No user found for ID: " << userId;
+        return "";
+    }
+}
+
 QJsonObject UserTable::getUserByAccount(const QString& account) {
     if (!m_database.isValid() || !m_database.isOpen()) return QJsonObject();
 

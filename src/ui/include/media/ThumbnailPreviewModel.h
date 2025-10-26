@@ -7,17 +7,18 @@
 #include <QString>
 #include <QSize>
 
+
 // 媒体项数据结构
 struct MediaItem {
     QString thumbnailPath;    // 缩略图路径
     QString sourceMediaPath;  // 源媒体路径
-    QString mediaType;        // 媒体类型: "image" 或 "video"
+    QString mediaType;        // 媒体类型
     QPixmap thumbnail;        // 加载的缩略图
     bool thumbnailLoaded;     // 缩略图是否已加载
 
     MediaItem(const QString& thumbPath = "",
               const QString& sourcePath = "",
-              const QString& type = "image")
+              const QString&type = "image")
         : thumbnailPath(thumbPath)
         , sourceMediaPath(sourcePath)
         , mediaType(type)

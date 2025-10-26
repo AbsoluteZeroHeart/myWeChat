@@ -8,10 +8,8 @@
 #include "MediaDialog.h"
 #include "imglabel.h"
 #include "ChatListDelegate.h"
-#include "Chatlistmodel.h"
-#include "customlistview.h"
-#include "ConversationsDelegate.h"
-#include "ConversationsModel.h"
+#include "ChatMessageDelegate.h"
+#include "AppController.h"
 #include <QSplitter>
 #include <QFrame>
 #include <QPropertyAnimation>
@@ -39,13 +37,10 @@ WeChatWidget::WeChatWidget(QWidget *parent)
     , mediaDialog(nullptr)
     , personalInfoDialog(nullptr)
 
-    // 聊天列表
-    , chatListDelegate(new ChatListDelegate())
-    , chatListModel(new ChatListModel())
+    , appController(new AppController(this))
 
-    // 消息列表
-    , conversationsModel(new ConversationsModel())
-    , conversationsDelegate(new ConversationsDelegate())
+    , chatListDelegate(new ChatListDelegate(this))
+    , chatMessageDelegate(new ChatMessageDelegate(this))
 
     // 自定义窗口相关
     , m_isOnTop(false)
@@ -60,206 +55,96 @@ WeChatWidget::WeChatWidget(QWidget *parent)
     ui->setupUi(this);
     setWindowFlags(Qt::FramelessWindowHint);
     setAttribute(Qt::WA_TranslucentBackground);
-    setMouseTracking(true);  // 设置鼠标跟踪
+    setMouseTracking(true);
 
     // 初始化聊天列表
-    chatListView = ui->chatList_View;
-    chatListView->setModel(chatListModel);
+    chatListView = ui->chatListView;
+    chatListView->setListType(CustomListView::ConversationList);
+    chatListView->setModel(appController->conversationController()->chatListModel());
+    // 连接会话列表菜单信号
+    chatListView->setConversationMenuSignals(
+        appController->conversationController(),
+        SLOT(handleToggleTop(qint64)),
+        SLOT(handleMarkAsUnread(qint64)),
+        SLOT(handleToggleMute(qint64)),
+        SLOT(handleOpenInWindow(qint64)),
+        SLOT(handleDelete(qint64))
+        );
     chatListView->setItemDelegate(chatListDelegate);
     chatListView->setUniformItemSizes(true);
+    appController->conversationController()->loadConversations();
+
+    connect(chatListView->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, [this](const QModelIndex &current, const QModelIndex &previous){
+                qint64 conversationId = current.data(ConversationIdRole).toLongLong();
+                appController->messageController()->setCurrentConversationId(conversationId);
+                qDebug() << "会话id:" << conversationId;
+
+                // 简单延迟滚动
+                QTimer::singleShot(100, this, [this]() {
+                    conversationsView->scrollToBottom();
+                });
+            });
+
 
     // 初始化消息列表
     conversationsView = ui->messageListView;
-    conversationsView->setModel(conversationsModel);
-    conversationsView->setItemDelegate(conversationsDelegate);
+    conversationsView->setListType(CustomListView::MessageList);
+    conversationsView->setModel(appController->messageController()->messagesModel());
+    // 连接消息列表菜单信号
+    conversationsView->setMessageMenuSignals(
+        appController->messageController(),
+        SLOT(handleCopy()),
+        SLOT(handleZoom()),
+        SLOT(handleTranslate()),
+        SLOT(handleSearch()),
+        SLOT(handleForward()),
+        SLOT(handleFavorite()),
+        SLOT(handleRemind()),
+        SLOT(handleMultiSelect()),
+        SLOT(handleQuote()),
+        SLOT(handlePin()),
+        SLOT(handleDelete())
+        );
+    conversationsView->setItemDelegate(chatMessageDelegate);
     conversationsView->setUniformItemSizes(false);
     conversationsView->setResizeMode(QListView::Adjust);
     conversationsView->setMarginRight(0);
-    // 滚动到最后一条消息
-    QTimer::singleShot(100, this, [this]() {
-        QModelIndex lastIndex = conversationsModel->index(conversationsModel->rowCount() - 1, 0);
-        conversationsView->scrollTo(lastIndex, QAbstractItemView::PositionAtBottom);
-    });
+    appController->messageController()->setCurrentUserId(10001);
 
-    connect(conversationsDelegate, &ConversationsDelegate::imageClicked, this, [&](const QPixmap &img){
+    // // 滚动到最后一条消息
+    // QTimer::singleShot(100, this, [this]() {
+    //     QModelIndex lastIndex = appController->messageController()->messagesModel()
+    //                                 ->index(appController->messageController()
+    //                                 ->messagesModel()->rowCount() - 1, 0);
+    //     conversationsView->scrollTo(lastIndex, QAbstractItemView::PositionAtBottom);
+    // });
+
+    connect(chatMessageDelegate, &ChatMessageDelegate::imageClicked, this, [&](const QPixmap &img){
         qDebug()<<"点击图片";
         if(!mediaDialog) mediaDialog = new MediaDialog();
         mediaDialog->setAttribute(Qt::WA_DeleteOnClose);
         mediaDialog->playPixmap(img);
         mediaDialog->show();
     });
-    connect(conversationsDelegate, &ConversationsDelegate::videoClicked, this, [&](const QString &videoPath){
+    connect(chatMessageDelegate, &ChatMessageDelegate::videoClicked, this, [&](const QString &videoPath){
         qDebug()<<"点击视频";
         if(!mediaDialog) mediaDialog = new MediaDialog();
         mediaDialog->setAttribute(Qt::WA_DeleteOnClose);
         // media_Dialog->;
         mediaDialog->show();
     });
-    connect(conversationsDelegate, &ConversationsDelegate::fileClicked, this, [&](const QString &filePath){
+    connect(chatMessageDelegate, &ChatMessageDelegate::fileClicked, this, [&](const QString &filePath){
         qDebug()<<"点击文件";
         bool success = QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
     });
 
     //检查信息输入框状态，设置初始样式
     updateSendButtonStyle();
-    connect(this->findChild<QTextEdit*>("sendTextEdit"),&QTextEdit::textChanged,
-            this,&WeChatWidget::updateSendButtonStyle);
+    connect(ui->sendTextEdit, &QTextEdit::textChanged,
+            this, &WeChatWidget::updateSendButtonStyle);
 
     qApp->installEventFilter(this);
-
-
-
-    // --------------------------------------------------------------------------------------------------------------------------
-    // 在初始化代码后面添加测试数据
-    auto addTestData = [this]() {
-        // 获取当前时间
-        QDateTime currentTime = QDateTime::currentDateTime();
-
-        // 添加多条测试消息
-        conversationsModel->addMessage(ChatMessage(
-            MessageType::TEXT,
-            "你好！这是一条文本消息",
-            "用户A",
-            ":/a/image/avatar.jpg",
-            currentTime.addSecs(-300)  // 5分钟前
-            ));
-
-        conversationsModel->addMessage(ChatMessage(
-            MessageType::IMAGE,
-            "收到你的消息了，这是一条比较长的回复消息，用来测试消息换行和显示效果，看看界面布局是否正常",
-            "用户B",
-            "",
-            currentTime.addSecs(-240),  // 4分钟前
-            {{"path",":/a/image/login.png"}}
-            ));
-
-        conversationsModel->addMessage(ChatMessage(
-            MessageType::IMAGE,
-            "发送一个图片文件",
-            "用户A",
-            ":/a/image/avatar.jpg",
-            currentTime.addSecs(-13330), // 3分钟前
-            QVariantMap{{"path", ":/a/image/.jpg"}, {"fileSize", "2.5MB"}}
-            ));
-
-        conversationsModel->addMessage(ChatMessage(
-            MessageType::TEXT,
-            QString("[太阳]莞工图书资源利用入门必备："
-                    "1、【查找馆藏图书】：登录图书馆主页（http://opac.lib.dgut.edu.cn/opac/search_adv.php#/index） 或 绑定“东莞理工学院图书馆”微信公众号“微服务”后进行查询。"
-                    "2、【图书荐购】：“我的图书馆—东莞理工学院图书馆书目检索系统—读者荐购”栏目中自主荐购或查询征订书目荐购：http://opac.lib.dgut.edu.cn/asord/asord_hist.php。"
-                    "[玫瑰]图书荐购且到馆后（该平台的个人中央认证帐号下会提示），[玫瑰]可到图书馆新书展示区（松山湖校区馆2楼，莞城校区馆8楼）找到图书办理借阅手续。[玫瑰]通常，经审核同意荐购的图书，大概1个月左右会到馆（寒暑假除外）。"
-                    ),
-            "用户A",
-            "",
-            currentTime.addSecs(-120), // 2分钟前
-            QVariantMap{{"duration", 30}, {"path", "/path/to/voice.amr"}}
-            ));
-
-        conversationsModel->addMessage(ChatMessage(
-            MessageType::VOICE,
-            "测试短消息",
-            "用户B",
-            ":/a/image/avatar.jpg",
-            currentTime.addSecs(-60),  // 1分钟前
-            QVariantMap{{"duration", 25}}
-            ));
-
-        conversationsModel->addMessage(ChatMessage(
-            MessageType::TEXT,
-            "最后一条测试消息，包含各种特殊字符：@#$%^&*()，以及中文测试",
-            "用户B",
-            "",
-            currentTime  // 当前时间
-            ));
-        conversationsModel->addMessage(ChatMessage(
-            MessageType::FILE,
-            "最后一条测试消息，包含各种特殊字符：@#$%^&*()，以及中文测试",
-            "用户A",
-            "",
-            currentTime,  // 当前时间
-            {{"path","C:\\Users\\GodPrograms\\Desktop\\项WWWWWWWWWWWWWWWWW目报告.doc.docx"},{"name","项WWWWWWWWWWWWWWWWW目报告.docx"},{"size",1024*1024}}
-            ));
-        conversationsModel->addMessage(ChatMessage(
-            MessageType::VIDEO,
-            "最后一条测试消息，包含各种特殊字符：@#$%^&*()，以及中文测试",
-            "用户A",
-            ":/a/image/login.png",
-            currentTime,  // 当前时间
-            {{"path","C:\\Users\\GodPrograms\\Downloads\\azh.mp41"},{"thumbnailPath","C:\\Users\\GodPrograms\\Pictures\\Camera Roll\\微信图片_2025-10-11_223555_236.jpg"}}
-            ));
-        conversationsModel->addMessage(ChatMessage(
-            MessageType::VOICE,
-            "最后一条测试消息，包含各种特殊字符：@#$%^&*()，以及中文测试",
-            "用户A",
-            "",
-            currentTime,  // 当前时间
-            QVariantMap{{"duration",30}}
-            ));
-    };
-
-    // 调用测试函数
-    addTestData();
-    addTestData();
-
-    //-----------------------------------------------------------------------------------------------------------------------------
-
-    // 无参匿名函数：内部写死所有测试数据和添加逻辑，调用即执行
-    auto addTestChatData = [&]() {
-        // 内部定义原add逻辑（参数仍保留，用于内部调用）
-        auto add = [&](const QString &name, const QString &msg, const QDateTime &t, int unread, const QString &avatarPath) {
-            ConversationsInfo it;
-            it.title = name;
-            it.lastMsg = msg;
-            it.lastTime = t;
-            it.unreadCount = unread;
-            it.avatar = avatarPath;
-            chatListModel->addFriend(it);
-        };
-
-        // -------------------------- 所有测试数据（已写死，无需外部传参） --------------------------
-        // 注意："fffff"为无效路径，请替换为实际图片路径（如"C:/test_avatars/li4.png"）
-        add("张三", "昨天我们讨论的接口我已经改好了，麻烦你 review 下eeeeeaaaaaaaaaaaaaeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee。",
-            QDateTime::currentDateTime().addSecs(-3600), 3,
-            "C:/test_avatars/zhang3.png");
-        add("李四eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "收到，晚点给你回复。",
-            QDateTime::currentDateTime().addDays(-1), 0,
-            "fffff");  // 需替换为有效路径
-        add("王五", "👍",
-            QDateTime::currentDateTime().addDays(-3), 120,
-            "C:/test_avatars/wang5.png");
-        add("Alice", "See you tomorrow at 10am",
-            QDateTime::currentDateTime().addSecs(-60*20), 1,
-            "C:/test_avatars/alice.png");
-
-        // 以下为重复测试数据（已完整保留原逻辑）
-        add("李四eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "收到，晚点给你回复。",
-            QDateTime::currentDateTime().addDays(-1), 0,
-            "C:/test_avatars/li4.png");
-        add("王五", "👍",
-            QDateTime::currentDateTime().addDays(-3), 120,
-            "C:/test_avatars/wang5.png");
-        add("Alice", "See you tomorrow at 10am",
-            QDateTime::currentDateTime().addSecs(-60*20), 1,
-            "C:/test_avatars/alice.png");
-        // ...（此处省略其余重复的add调用，完整代码中需保留所有原add语句）
-        // 最后一条测试数据
-        add("Alice", "See you tomorrow at 10am",
-            QDateTime::currentDateTime().addSecs(-60*20), 1,
-            "C:/test_avatars/alice.png");
-    };
-
-    // 调用方式：直接执行无参匿名函数，一次性添加所有测试数据
-    addTestChatData();
-    addTestChatData();
-
-
-    // ----------------------------------------------------------------------------------------------------------------------------
-
-
-
-
-
-
 
 }
 

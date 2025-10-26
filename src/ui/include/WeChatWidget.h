@@ -19,10 +19,12 @@ class FloatingDialog;
 class PersonalInfoDialog;
 class MediaDialog;
 class CustomListView;
-class ChatListModel;
 class ChatListDelegate;
-class ConversationsDelegate;
+class ChatMessageDelegate;
 class ConversationsModel;
+// class ConversationController;
+// class MessageController;
+class AppController;
 
 class WeChatWidget : public QWidget
 {
@@ -98,14 +100,19 @@ private:
     QPointer<PersonalInfoDialog> personalInfoDialog;
     QPointer<MediaDialog> mediaDialog;
 
+    // ConversationController *conversationController;
+    // MessageController *messageController;
+
+    AppController *appController;
+
     //聊天列表
-    ChatListModel *chatListModel;
+    // ChatListModel *chatListModel;
     ChatListDelegate *chatListDelegate;
     CustomListView *chatListView;
 
     // 聊天消息页
-    ConversationsModel *conversationsModel;
-    ConversationsDelegate *conversationsDelegate;
+    // ConversationsModel *conversationsModel;
+    ChatMessageDelegate *chatMessageDelegate;
     CustomListView *conversationsView;
 
 
