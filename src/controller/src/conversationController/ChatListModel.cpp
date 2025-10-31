@@ -18,7 +18,7 @@ QVariant ChatListModel::data(const QModelIndex &index, int role) const
     if (!index.isValid() || index.row() >= m_conversations.size())
         return QVariant();
 
-    const ConversationInfo &conversation = m_conversations.at(index.row());
+    const Conversation &conversation = m_conversations.at(index.row());
 
     switch (role) {
     case ConversationIdRole:
@@ -57,7 +57,7 @@ bool ChatListModel::setData(const QModelIndex &index, const QVariant &value, int
     if (!index.isValid() || index.row() >= m_conversations.size())
         return false;
 
-    ConversationInfo &conversation = m_conversations[index.row()];
+    Conversation &conversation = m_conversations[index.row()];
     bool changed = false;
 
     switch (role) {
@@ -134,13 +134,13 @@ QHash<int, QByteArray> ChatListModel::roleNames() const
     return roles;
 }
 
-void ChatListModel::addConversation(const ConversationInfo &conversationInfo)
+void ChatListModel::addConversation(const Conversation &conversation)
 {
     // 检查是否已存在
-    int existingIndex = findConversationIndex(conversationInfo.conversationId);
+    int existingIndex = findConversationIndex(conversation.conversationId);
     if (existingIndex != -1) {
         // 更新现有会话
-        m_conversations[existingIndex] = conversationInfo;
+        m_conversations[existingIndex] = conversation;
         QModelIndex index = createIndex(existingIndex, 0);
         emit dataChanged(index, index);
         return;
@@ -148,15 +148,25 @@ void ChatListModel::addConversation(const ConversationInfo &conversationInfo)
 
     // 插入新会话
     beginInsertRows(QModelIndex(), m_conversations.size(), m_conversations.size());
-    m_conversations.append(conversationInfo);
+    m_conversations.append(conversation);
     endInsertRows();
 }
 
-void ChatListModel::updateLastMessage(qint64 conversationId, const QString &message, const qint64 &time)
+void ChatListModel::updateConversation(const Conversation &conversation)
+{
+    int index = findConversationIndex(conversation.conversationId);
+    if (index != -1) {
+        m_conversations[index] = conversation;
+        QModelIndex modelIndex = createIndex(index, 0);
+        emit dataChanged(modelIndex, modelIndex);
+    }
+}
+
+void ChatListModel::updateLastMessage(qint64 conversationId, const QString &message, qint64 time)
 {
     int index = findConversationIndex(conversationId);
     if (index != -1) {
-        ConversationInfo &conversation = m_conversations[index];
+        Conversation &conversation = m_conversations[index];
         conversation.lastMessageContent = message;
         conversation.lastMessageTime = time;
 
@@ -169,7 +179,7 @@ void ChatListModel::updateUnreadCount(qint64 conversationId, int count)
 {
     int index = findConversationIndex(conversationId);
     if (index != -1) {
-        ConversationInfo &conversation = m_conversations[index];
+        Conversation &conversation = m_conversations[index];
         conversation.unreadCount = count;
 
         QModelIndex modelIndex = createIndex(index, 0);
@@ -181,7 +191,7 @@ void ChatListModel::updateTopStatus(qint64 conversationId, bool isTop)
 {
     int index = findConversationIndex(conversationId);
     if (index != -1) {
-        ConversationInfo &conversation = m_conversations[index];
+        Conversation &conversation = m_conversations[index];
         conversation.isTop = isTop;
 
         QModelIndex modelIndex = createIndex(index, 0);
@@ -189,21 +199,21 @@ void ChatListModel::updateTopStatus(qint64 conversationId, bool isTop)
     }
 }
 
-ConversationInfo ChatListModel::getConversationInfo(qint64 conversationId) const
+Conversation ChatListModel::getConversation(qint64 conversationId) const
 {
     int index = findConversationIndex(conversationId);
     if (index != -1) {
         return m_conversations.at(index);
     }
-    return ConversationInfo();
+    return Conversation();
 }
 
-ConversationInfo ChatListModel::getConversationInfoAt(int index) const
+Conversation ChatListModel::getConversationAt(int index) const
 {
     if (index >= 0 && index < m_conversations.size()) {
         return m_conversations.at(index);
     }
-    return ConversationInfo();
+    return Conversation();
 }
 
 void ChatListModel::removeConversation(qint64 conversationId)
@@ -224,7 +234,6 @@ void ChatListModel::clearAll()
         endRemoveRows();
     }
 }
-
 
 int ChatListModel::findConversationIndex(qint64 conversationId) const
 {

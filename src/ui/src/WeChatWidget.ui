@@ -79,7 +79,7 @@
        <number>11</number>
       </property>
       <item>
-       <widget class="AvatarButton" name="avatarPushButton">
+       <widget class="QPushButton" name="avatarPushButton">
         <property name="enabled">
          <bool>true</bool>
         </property>
@@ -91,6 +91,12 @@
         </property>
         <property name="text">
          <string/>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>40</width>
+          <height>40</height>
+         </size>
         </property>
        </widget>
       </item>
@@ -1115,7 +1121,7 @@ QToolButton:pressed {
                <number>10</number>
               </property>
               <item>
-               <widget class="QLabel" name="label">
+               <widget class="QLabel" name="chatPartnerLabel">
                 <property name="styleSheet">
                  <string notr="true">font: 12pt &quot;等线&quot;;
 padding-bottom: 5px;  
@@ -1371,7 +1377,7 @@ QToolButton:pressed {
                    </widget>
                   </item>
                   <item>
-                   <widget class="QToolButton" name="toolButton_9">
+                   <widget class="QToolButton" name="selectFileButton">
                     <property name="minimumSize">
                      <size>
                       <width>30</width>
@@ -1727,11 +1733,6 @@ QPushButton:pressed {
   </action>
  </widget>
  <customwidgets>
-  <customwidget>
-   <class>AvatarButton</class>
-   <extends>QPushButton</extends>
-   <header>AvatarButton.h</header>
-  </customwidget>
   <customwidget>
    <class>CustomListView</class>
    <extends>QListView</extends>

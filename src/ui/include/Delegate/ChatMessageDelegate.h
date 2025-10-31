@@ -4,8 +4,8 @@
 #include <QStyledItemDelegate>
 #include <QPainter>
 #include <QMouseEvent>
-#include "models/ChatMessage.h"
 #include "MediaResourceManager.h"
+#include "Message.h"
 
 
 class ChatMessageDelegate : public QStyledItemDelegate
@@ -25,12 +25,12 @@ public:
                      const QStyleOptionViewItem &option, const QModelIndex &index) override;
 
 signals:
-    void imageClicked(const QPixmap &image);
-    void videoClicked(const QString &videoPath);
+    void mediaClicked(const qint64 &msgId, const qint64 &conversationId);
     void fileClicked(const QString &filePath);
     void voiceClicked(const QString &voicePath);
     void textClicked(const QString &text);
-    void messageClicked(const ChatMessage &message);
+    void rightClicked(const QPoint& globalPos, const Message &message);
+
 
 
 private slots:
@@ -40,21 +40,21 @@ private slots:
 private:
     // 不同类型消息的绘制方法
     void paintTextMessage(QPainter *painter, const QStyleOptionViewItem &option,
-                          const ChatMessage &message, bool isOwn) const;
+                          const Message &message, bool isOwn) const;
     void paintImageMessage(QPainter *painter, const QStyleOptionViewItem &option,
-                           const ChatMessage &message, bool isOwn) const;
+                           const Message &message, bool isOwn) const;
     void paintVideoMessage(QPainter *painter, const QStyleOptionViewItem &option,
-                           const ChatMessage &message, bool isOwn) const;
+                           const Message &message, bool isOwn) const;
     void paintFileMessage(QPainter *painter, const QStyleOptionViewItem &option,
-                          const ChatMessage &message, bool isOwn) const;
+                          const Message &message, bool isOwn) const;
     void paintVoiceMessage(QPainter *painter, const QStyleOptionViewItem &option,
-                           const ChatMessage &message, bool isOwn) const;
+                           const Message &message, bool isOwn) const;
 
     // 辅助绘制方法
     void paintAvatar(QPainter *painter, const QRect &avatarRect,
-                     const ChatMessage &message) const;
+                     const Message &message) const;
     void paintTime(QPainter *painter, const QRect &rect, const QStyleOptionViewItem &option,
-                   const ChatMessage &message, bool isOwnMessage) const;
+                   const Message &message, bool isOwnMessage) const;
     void paintFileIcon(QPainter *painter, const QRect &fileRect,
                        const QString &extension) const;
     void paintPlayButtonAndWaveform(QPainter *painter, const QRect &bubbleRect,
@@ -67,7 +67,10 @@ private:
     // 工具方法
     QSize calculateTextSize(const QString &text, const QFont &font, int maxWidth) const;
     QString getFileExtension(const QString &fileName) const;
-    QRect getClickableRect(const QStyleOptionViewItem &option, const ChatMessage &message) const;
+    QRect getClickableRect(const QStyleOptionViewItem &option, const Message &message,
+                           const bool &isOwn) const;
+    bool handleLeftClick(QMouseEvent *mouseEvent, const QStyleOptionViewItem &option,
+                         const QModelIndex &index);
 
 private:
     // 常量定义
@@ -84,6 +87,8 @@ private:
     static const int WAVEFORM_HEIGHT = 16;
     static const int ICON_WIDTH = 29;
     static const int ICON_HEIGHT = 40;
+
+    MediaResourceManager *mediaManager;
 };
 
 #endif // CHATMESSAGEDELEGATE_H

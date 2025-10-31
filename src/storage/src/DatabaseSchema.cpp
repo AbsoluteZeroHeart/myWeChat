@@ -161,7 +161,7 @@ QString DatabaseSchema::getCreateTableMediaCache() {
         CREATE TABLE IF NOT EXISTS media_cache (
             cache_id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 本地自增ID
             file_path TEXT UNIQUE NOT NULL,              -- 本地文件路径（唯一）
-            file_type INTEGER NOT NULL,                  -- 文件类型（0:图片 1:语音等）
+            file_type INTEGER NOT NULL,                  -- 文件类型
             original_url TEXT,                           -- 原始URL
             file_size INTEGER,                           -- 文件大小
             access_count INTEGER DEFAULT 0,              -- 访问次数

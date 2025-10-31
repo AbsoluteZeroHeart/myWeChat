@@ -2,92 +2,70 @@
 #define CONVERSATIONCONTROLLER_H
 
 #include <QObject>
-#include <QDateTime>
+#include <QJsonObject>
+#include <QJsonArray>
+#include "Conversation.h"
 #include "ChatListModel.h"
 
 
-class DataAccessContext;   
+
+class ChatListModel;
+class DataAccessContext;
 
 class ConversationController : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(ChatListModel* chatListModel READ chatListModel NOTIFY chatListModelChanged)
 
 public:
     explicit ConversationController(QObject *parent = nullptr);
     ~ConversationController();
 
-    // 获取聊天列表模型
     ChatListModel* chatListModel() const;
 
-    // 加载会话列表
-    Q_INVOKABLE void loadConversations();
+    // 会话管理
+    void loadConversations();
+    bool createSingleChat(qint64 userId);
+    bool createGroupChat(qint64 groupId);
+    void deleteConversation(qint64 conversationId);
 
-    // 创建新会话
-    Q_INVOKABLE bool createSingleChat(qint64 userId);
-    Q_INVOKABLE bool createGroupChat(qint64 groupId);
+    // 会话状态管理
+    void updateLastMessage(qint64 conversationId, const QString &message);
+    void updateUnreadCount(qint64 conversationId, int count);
+    void incrementUnreadCount(qint64 conversationId);
+    void clearUnreadCount(qint64 conversationId);
+    void toggleTopStatus(qint64 conversationId);
 
-    // 更新会话最后消息
-    Q_INVOKABLE void updateLastMessage(qint64 conversationId, const QString &message);
+    // 查询方法
+    Conversation getConversation(qint64 conversationId);
+    QVariantMap getConversationInfo(qint64 conversationId);
+    QVariantList searchConversations(const QString &keyword);
 
-    // 更新未读计数
-    Q_INVOKABLE void updateUnreadCount(qint64 conversationId, int count);
-    Q_INVOKABLE void incrementUnreadCount(qint64 conversationId);
-    Q_INVOKABLE void clearUnreadCount(qint64 conversationId);
-    Q_INVOKABLE void toggleReadStatus(qint64 conversationId);
-
-
-    // 切换置顶会话
-    Q_INVOKABLE void toggleTopStatus(qint64 conversationId);
-
-    // 删除会话
-    Q_INVOKABLE void deleteConversation(qint64 conversationId);
-
-    // 获取会话信息
-    Q_INVOKABLE QVariantMap getConversationInfo(qint64 conversationId);
-
-    // 搜索会话
-    Q_INVOKABLE QVariantList searchConversations(const QString &keyword);
+    // 便捷方法
+    QString getConversationTitle(int type, qint64 targetId);
+    QString getConversationAvatar(int type, qint64 targetId);
 
 public slots:
+    void onNewMessageReceived(qint64 conversationId, const QString &message, qint64 timestamp);
     void handleToggleTop(qint64 conversationId);
-    void handleMarkAsUnread(qint64 conversationId);
+    void handltoggleReadStatus(qint64 conversationId);
     void handleToggleMute(qint64 conversationId);
     void handleOpenInWindow(qint64 conversationId);
     void handleDelete(qint64 conversationId);
 
-
 signals:
-    void chatListModelChanged();
     void conversationLoaded();
     void conversationCreated(qint64 conversationId);
     void conversationUpdated(qint64 conversationId);
     void conversationDeleted(qint64 conversationId);
+    void errorOccurred(const QString& error);
     void openConversationInWindow(qint64 conversationId);
-    void errorOccurred(const QString &errorMessage);
-
-private slots:
-    void onNewMessageReceived(qint64 conversationId, const QString &message, qint64 timestamp);
-
-private:
-    // 从数据库加载会话到模型
-    void loadConversationsFromDatabase();
-
-    // 更新数据库中的会话信息
-    bool updateConversationInDatabase(const ConversationInfo &conversationInfo);
-
-    // 创建会话信息对象
-    ConversationInfo createConversationInfo(const QJsonObject &dbData);
-
-    // 设置会话标题
-    QString getConversationTitle(int type, qint64 targetId);
-
-    // 设置会话头像
-    QString getConversationAvatar(int type, qint64 targetId);
 
 private:
     ChatListModel* m_chatListModel;
-    DataAccessContext * m_dataAccessContext;
+    DataAccessContext* m_dataAccessContext;
+
+    void loadConversationsFromDatabase();
+    bool updateConversationInDatabase(const Conversation& conversation);
 };
 
 #endif // CONVERSATIONCONTROLLER_H

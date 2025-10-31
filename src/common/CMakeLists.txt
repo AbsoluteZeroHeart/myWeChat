@@ -18,13 +18,14 @@ target_include_directories(common PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include/models
 )
 
-
 # 查找 Qt Core 模块
-find_package(Qt6 REQUIRED COMPONENTS Core)
+find_package(Qt6 REQUIRED COMPONENTS Core Sql Gui)
 
 # 链接 Qt Core 模块
 target_link_libraries(common PRIVATE
     Qt6::Core
+    Qt6::Sql
+    Qt::Gui
 )
 
 

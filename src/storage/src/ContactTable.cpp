@@ -1,4 +1,6 @@
 #include "ContactTable.h"
+#include <QSqlQuery>
+#include <QSqlError>
 #include <QJsonDocument>
 
 ContactTable::ContactTable(QSqlDatabase database, QObject *parent)
@@ -6,7 +8,7 @@ ContactTable::ContactTable(QSqlDatabase database, QObject *parent)
 {
 }
 
-bool ContactTable::saveContact(const QJsonObject& contact)
+bool ContactTable::saveContact(const Contact& contact)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -19,43 +21,20 @@ bool ContactTable::saveContact(const QJsonObject& contact)
                   "email_note, source, is_starred, is_blocked, add_time, last_contact_time"
                   ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
-    qint64 userId = contact.value("user_id").toVariant().toLongLong();
-    QString remarkName = contact.value("remark_name").toString();
-    QString description = contact.value("description").toString();
-
     // 处理 tags 字段
-    QJsonArray tagsArray = contact.value("tags").toArray();
-    QString tagsString = QJsonDocument(tagsArray).toJson(QJsonDocument::Compact);
+    QString tagsString = QJsonDocument(contact.tags).toJson(QJsonDocument::Compact);
 
-    QString phoneNote = contact.value("phone_note").toString();
-    QString emailNote = contact.value("email_note").toString();
-    QString source = contact.value("source").toString();
-    int isStarred = contact.value("is_starred").toInt(0);
-    int isBlocked = contact.value("is_blocked").toInt(0);
-
-    qint64 currentTime = QDateTime::currentSecsSinceEpoch();
-
-    qint64 addTime = currentTime;
-    if (contact.contains("add_time") && !contact.value("add_time").isUndefined()) {
-        addTime = contact.value("add_time").toVariant().toLongLong();
-    }
-
-    qint64 lastContactTime = currentTime;
-    if (contact.contains("last_contact_time") && !contact.value("last_contact_time").isUndefined()) {
-        lastContactTime = contact.value("last_contact_time").toVariant().toLongLong();
-    }
-
-    query.addBindValue(userId);
-    query.addBindValue(remarkName);
-    query.addBindValue(description);
+    query.addBindValue(contact.userId);
+    query.addBindValue(contact.remarkName);
+    query.addBindValue(contact.description);
     query.addBindValue(tagsString);
-    query.addBindValue(phoneNote);
-    query.addBindValue(emailNote);
-    query.addBindValue(source);
-    query.addBindValue(isStarred);
-    query.addBindValue(isBlocked);
-    query.addBindValue(addTime);
-    query.addBindValue(lastContactTime);
+    query.addBindValue(contact.phoneNote);
+    query.addBindValue(contact.emailNote);
+    query.addBindValue(contact.source);
+    query.addBindValue(contact.isStarred ? 1 : 0);
+    query.addBindValue(contact.isBlocked ? 1 : 0);
+    query.addBindValue(contact.addTime);
+    query.addBindValue(contact.lastContactTime);
 
     if (!query.exec()) {
         qWarning() << "Save contact failed:" << query.lastError().text();
@@ -65,49 +44,66 @@ bool ContactTable::saveContact(const QJsonObject& contact)
     return true;
 }
 
-// 定义辅助宏
-#define ADD_FIELD_IF_EXISTS(field, jsonField) \
-if (contact.contains(#jsonField)) { \
-        updateFields << #field " = ?"; \
-        bindValues << contact.value(#jsonField).toVariant(); \
-}
-
-bool ContactTable::updateContact(const QJsonObject& contact)
+bool ContactTable::updateContact(const Contact& contact)
 {
     if (!m_database.isOpen()) return false;
-    if (!contact.contains("user_id")) return false;
+    if (!contact.isValid()) return false;
 
-    qint64 userId = contact.value("user_id").toVariant().toLongLong();
     QStringList updateFields;
     QVariantList bindValues;
 
-    // 使用宏添加字段
-    ADD_FIELD_IF_EXISTS(remark_name, remark_name)
-    ADD_FIELD_IF_EXISTS(description, description)
-    ADD_FIELD_IF_EXISTS(phone_note, phone_note)
-    ADD_FIELD_IF_EXISTS(email_note, email_note)
-    ADD_FIELD_IF_EXISTS(source, source)
-    ADD_FIELD_IF_EXISTS(is_starred, is_starred)
-    ADD_FIELD_IF_EXISTS(is_blocked, is_blocked)
-    ADD_FIELD_IF_EXISTS(add_time, add_time)
-    ADD_FIELD_IF_EXISTS(last_contact_time, last_contact_time)
+    // 动态构建更新字段
+    if (!contact.remarkName.isNull()) {
+        updateFields << "remark_name = ?";
+        bindValues << contact.remarkName;
+    }
+    if (!contact.description.isNull()) {
+        updateFields << "description = ?";
+        bindValues << contact.description;
+    }
+    if (!contact.phoneNote.isNull()) {
+        updateFields << "phone_note = ?";
+        bindValues << contact.phoneNote;
+    }
+    if (!contact.emailNote.isNull()) {
+        updateFields << "email_note = ?";
+        bindValues << contact.emailNote;
+    }
+    if (!contact.source.isNull()) {
+        updateFields << "source = ?";
+        bindValues << contact.source;
+    }
+    
+    updateFields << "is_starred = ?";
+    bindValues << (contact.isStarred ? 1 : 0);
+    
+    updateFields << "is_blocked = ?";
+    bindValues << (contact.isBlocked ? 1 : 0);
+
+    if (contact.addTime > 0) {
+        updateFields << "add_time = ?";
+        bindValues << contact.addTime;
+    }
+    if (contact.lastContactTime > 0) {
+        updateFields << "last_contact_time = ?";
+        bindValues << contact.lastContactTime;
+    }
 
     // 特殊处理 tags 字段
-    if (contact.contains("tags")) {
+    if (!contact.tags.isEmpty()) {
         updateFields << "tags = ?";
-        QJsonArray tagsArray = contact.value("tags").toArray();
-        QString tagsString = QJsonDocument(tagsArray).toJson(QJsonDocument::Compact);
+        QString tagsString = QJsonDocument(contact.tags).toJson(QJsonDocument::Compact);
         bindValues << tagsString;
     }
 
     if (updateFields.isEmpty()) return false;
 
     QString sql = "UPDATE contacts SET " + updateFields.join(", ") + " WHERE user_id = ?";
-    bindValues << userId;
+    bindValues << contact.userId;
 
     QSqlQuery query(m_database);
     query.prepare(sql);
-    for (const QVariant& value : std::as_const(bindValues)) {
+    for (const QVariant& value : bindValues) {
         query.addBindValue(value);
     }
 
@@ -133,9 +129,9 @@ bool ContactTable::deleteContact(qint64 userId)
     return query.numRowsAffected() > 0;
 }
 
-QJsonArray ContactTable::getAllContacts()
+QList<Contact> ContactTable::getAllContacts()
 {
-    QJsonArray contacts;
+    QList<Contact> contacts;
 
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -145,17 +141,17 @@ QJsonArray ContactTable::getAllContacts()
     QSqlQuery query("SELECT * FROM contacts ORDER BY remark_name", m_database);
 
     while (query.next()) {
-        contacts.append(contactFromQuery(query));
+        contacts.append(Contact(query));
     }
 
     return contacts;
 }
 
-QJsonObject ContactTable::getContact(qint64 userId)
+Contact ContactTable::getContact(qint64 userId)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
-        return QJsonObject();
+        return Contact();
     }
 
     QSqlQuery query(m_database);
@@ -163,10 +159,10 @@ QJsonObject ContactTable::getContact(qint64 userId)
     query.addBindValue(userId);
 
     if (!query.exec() || !query.next()) {
-        return QJsonObject();
+        return Contact();
     }
 
-    return contactFromQuery(query);
+    return Contact(query);
 }
 
 QString ContactTable::getRemarkName(qint64 userId)
@@ -211,9 +207,9 @@ bool ContactTable::isContact(qint64 userId)
     return query.next();
 }
 
-QJsonArray ContactTable::searchContacts(const QString& keyword)
+QList<Contact> ContactTable::searchContacts(const QString& keyword)
 {
-    QJsonArray contacts;
+    QList<Contact> contacts;
 
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -244,12 +240,11 @@ QJsonArray ContactTable::searchContacts(const QString& keyword)
     }
 
     while (query.next()) {
-        contacts.append(contactFromQuery(query));
+        contacts.append(Contact(query));
     }
 
     return contacts;
 }
-
 
 bool ContactTable::setContactStarred(qint64 userId, bool starred)
 {
@@ -291,10 +286,9 @@ bool ContactTable::setContactBlocked(qint64 userId, bool blocked)
     return query.numRowsAffected() > 0;
 }
 
-
-QJsonArray ContactTable::getStarredContacts()
+QList<Contact> ContactTable::getStarredContacts()
 {
-    QJsonArray contacts;
+    QList<Contact> contacts;
 
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -310,52 +304,18 @@ QJsonArray ContactTable::getStarredContacts()
     }
 
     while (query.next()) {
-        contacts.append(contactFromQuery(query));
+        contacts.append(Contact(query));
     }
 
     return contacts;
 }
 
-// 私有辅助方法
-QJsonObject ContactTable::contactFromQuery(const QSqlQuery& query)
-{
-    QJsonObject contact;
-
-    contact["user_id"] = query.value("user_id").toLongLong();
-    contact["remark_name"] = query.value("remark_name").toString();
-    contact["description"] = query.value("description").toString();
-
-    // 解析JSON格式的tags
-    QString tagsJson = query.value("tags").toString();
-    if (!tagsJson.isEmpty()) {
-        QJsonDocument doc = QJsonDocument::fromJson(tagsJson.toUtf8());
-        if (doc.isArray()) {
-            contact["tags"] = doc.array();
-        } else {
-            contact["tags"] = QJsonArray();
-        }
-    } else {
-        contact["tags"] = QJsonArray();
-    }
-
-    contact["phone_note"] = query.value("phone_note").toString();
-    contact["email_note"] = query.value("email_note").toString();
-    contact["source"] = query.value("source").toString();
-    contact["is_starred"] = query.value("is_starred").toInt();
-    contact["is_blocked"] = query.value("is_blocked").toInt();
-    contact["add_time"] = query.value("add_time").toLongLong();
-    contact["last_contact_time"] = query.value("last_contact_time").toLongLong();
-
-    return contact;
-}
-
 QString ContactTable::buildSearchCondition(const QString& keyword)
 {
-    // 在多个字段中搜索关键词
     return "remark_name LIKE ? OR "
            "description LIKE ? OR "
            "phone_note LIKE ? OR "
            "email_note LIKE ? OR "
            "source LIKE ? OR "
-           "tags LIKE ?"; // tags是JSON，但也支持搜索
+           "tags LIKE ?";
 }

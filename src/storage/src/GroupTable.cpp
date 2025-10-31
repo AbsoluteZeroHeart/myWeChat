@@ -8,7 +8,7 @@ GroupTable::GroupTable(QSqlDatabase database, QObject *parent)
 {
 }
 
-bool GroupTable::saveGroup(const QJsonObject& group)
+bool GroupTable::saveGroup(const Group& group)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -18,16 +18,17 @@ bool GroupTable::saveGroup(const QJsonObject& group)
     QSqlQuery query(m_database);
     query.prepare("INSERT INTO groups ("
                   "group_id, group_name, avatar, avatar_local_path, "
-                  "announcement, member_count, max_members"
-                  ") VALUES (?, ?, ?, ?, ?, ?, ?)");
+                  "announcement, member_count, max_members, group_note"
+                  ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
 
-    query.addBindValue(group.value("group_id").toVariant().toLongLong());
-    query.addBindValue(group.value("group_name").toString());
-    query.addBindValue(group.value("avatar").toString());
-    query.addBindValue(group.value("avatar_local_path").toString());
-    query.addBindValue(group.value("announcement").toString());
-    query.addBindValue(group.value("member_count").toInt(0));
-    query.addBindValue(group.value("max_members").toInt(500));
+    query.addBindValue(group.groupId);
+    query.addBindValue(group.groupName);
+    query.addBindValue(group.avatar);
+    query.addBindValue(group.avatarLocalPath);
+    query.addBindValue(group.announcement);
+    query.addBindValue(group.memberCount);
+    query.addBindValue(group.maxMembers);
+    query.addBindValue(group.groupNote);
 
     if (!query.exec()) {
         qWarning() << "Save group failed:" << query.lastError().text();
@@ -37,7 +38,7 @@ bool GroupTable::saveGroup(const QJsonObject& group)
     return true;
 }
 
-bool GroupTable::updateGroup(const QJsonObject& group)
+bool GroupTable::updateGroup(const Group& group)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -47,16 +48,17 @@ bool GroupTable::updateGroup(const QJsonObject& group)
     QSqlQuery query(m_database);
     query.prepare("UPDATE groups SET "
                   "group_name = ?, avatar = ?, avatar_local_path = ?, "
-                  "announcement = ?, member_count = ?, max_members = ? "
+                  "announcement = ?, member_count = ?, max_members = ?, group_note = ? "
                   "WHERE group_id = ?");
 
-    query.addBindValue(group.value("group_name").toString());
-    query.addBindValue(group.value("avatar").toString());
-    query.addBindValue(group.value("avatar_local_path").toString());
-    query.addBindValue(group.value("announcement").toString());
-    query.addBindValue(group.value("member_count").toInt(0));
-    query.addBindValue(group.value("max_members").toInt(500));
-    query.addBindValue(group.value("group_id").toVariant().toLongLong());
+    query.addBindValue(group.groupName);
+    query.addBindValue(group.avatar);
+    query.addBindValue(group.avatarLocalPath);
+    query.addBindValue(group.announcement);
+    query.addBindValue(group.memberCount);
+    query.addBindValue(group.maxMembers);
+    query.addBindValue(group.groupNote);
+    query.addBindValue(group.groupId);
 
     if (!query.exec()) {
         qWarning() << "Update group failed:" << query.lastError().text();
@@ -85,9 +87,9 @@ bool GroupTable::deleteGroup(qint64 groupId)
     return query.numRowsAffected() > 0;
 }
 
-QJsonArray GroupTable::getAllGroups()
+QList<Group> GroupTable::getAllGroups()
 {
-    QJsonArray groups;
+    QList<Group> groups;
     
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -102,17 +104,17 @@ QJsonArray GroupTable::getAllGroups()
     }
 
     while (query.next()) {
-        groups.append(groupFromQuery(query));
+        groups.append(Group(query));
     }
 
     return groups;
 }
 
-QJsonObject GroupTable::getGroup(qint64 groupId)
+Group GroupTable::getGroup(qint64 groupId)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
-        return QJsonObject();
+        return Group();
     }
 
     QSqlQuery query(m_database);
@@ -120,10 +122,10 @@ QJsonObject GroupTable::getGroup(qint64 groupId)
     query.addBindValue(groupId);
 
     if (!query.exec() || !query.next()) {
-        return QJsonObject();
+        return Group();
     }
 
-    return groupFromQuery(query);
+    return Group(query);
 }
 
 QString GroupTable::getLocalAvatarPath(qint64 groupId)
@@ -152,7 +154,6 @@ QString GroupTable::getLocalAvatarPath(qint64 groupId)
     return QString();
 }
 
-
 bool GroupTable::updateGroupAnnouncement(qint64 groupId, const QString& announcement)
 {
     if (!m_database.isOpen()) {
@@ -172,7 +173,6 @@ bool GroupTable::updateGroupAnnouncement(qint64 groupId, const QString& announce
 
     return query.numRowsAffected() > 0;
 }
-
 
 bool GroupTable::updateGroupAvatar(qint64 groupId, const QString& avatarUrl, const QString& localPath)
 {
@@ -202,9 +202,49 @@ bool GroupTable::updateGroupAvatar(qint64 groupId, const QString& avatarUrl, con
     return query.numRowsAffected() > 0;
 }
 
-QJsonArray GroupTable::searchGroups(const QString& keyword)
+bool GroupTable::updateGroupMemberCount(qint64 groupId, int memberCount)
 {
-    QJsonArray groups;
+    if (!m_database.isOpen()) {
+        qWarning() << "Database is not open";
+        return false;
+    }
+
+    QSqlQuery query(m_database);
+    query.prepare("UPDATE groups SET member_count = ? WHERE group_id = ?");
+    query.addBindValue(memberCount);
+    query.addBindValue(groupId);
+
+    if (!query.exec()) {
+        qWarning() << "Update group member count failed:" << query.lastError().text();
+        return false;
+    }
+
+    return query.numRowsAffected() > 0;
+}
+
+bool GroupTable::updateGroupNote(qint64 groupId, const QString& groupNote)
+{
+    if (!m_database.isOpen()) {
+        qWarning() << "Database is not open";
+        return false;
+    }
+
+    QSqlQuery query(m_database);
+    query.prepare("UPDATE groups SET group_note = ? WHERE group_id = ?");
+    query.addBindValue(groupNote);
+    query.addBindValue(groupId);
+
+    if (!query.exec()) {
+        qWarning() << "Update group note failed:" << query.lastError().text();
+        return false;
+    }
+
+    return query.numRowsAffected() > 0;
+}
+
+QList<Group> GroupTable::searchGroups(const QString& keyword)
+{
+    QList<Group> groups;
     
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -213,10 +253,11 @@ QJsonArray GroupTable::searchGroups(const QString& keyword)
 
     QSqlQuery query(m_database);
     query.prepare("SELECT * FROM groups WHERE "
-                  "group_name LIKE ? OR announcement LIKE ? "
+                  "group_name LIKE ? OR announcement LIKE ? OR group_note LIKE ? "
                   "ORDER BY group_name");
     
     QString likePattern = QString("%%1%").arg(keyword);
+    query.addBindValue(likePattern);
     query.addBindValue(likePattern);
     query.addBindValue(likePattern);
 
@@ -226,24 +267,8 @@ QJsonArray GroupTable::searchGroups(const QString& keyword)
     }
 
     while (query.next()) {
-        groups.append(groupFromQuery(query));
+        groups.append(Group(query));
     }
 
     return groups;
-}
-
-// 私有辅助方法
-QJsonObject GroupTable::groupFromQuery(const QSqlQuery& query)
-{
-    QJsonObject group;
-    
-    group["group_id"] = query.value("group_id").toLongLong();
-    group["group_name"] = query.value("group_name").toString();
-    group["avatar"] = query.value("avatar").toString();
-    group["avatar_local_path"] = query.value("avatar_local_path").toString();
-    group["announcement"] = query.value("announcement").toString();
-    group["member_count"] = query.value("member_count").toInt();
-    group["max_members"] = query.value("max_members").toInt();
-    
-    return group;
 }

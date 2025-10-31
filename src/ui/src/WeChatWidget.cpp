@@ -24,6 +24,9 @@
 #include <QUrl>
 #include <QFileInfo>
 #include <QStandardPaths>
+#include "MediaResourceManager.h"
+#include <QCheckBox>
+
 
 
 WeChatWidget::WeChatWidget(QWidget *parent)
@@ -37,11 +40,6 @@ WeChatWidget::WeChatWidget(QWidget *parent)
     , mediaDialog(nullptr)
     , personalInfoDialog(nullptr)
 
-    , appController(new AppController(this))
-
-    , chatListDelegate(new ChatListDelegate(this))
-    , chatMessageDelegate(new ChatMessageDelegate(this))
-
     // 自定义窗口相关
     , m_isOnTop(false)
     , m_titleBarHeight(70)
@@ -51,93 +49,152 @@ WeChatWidget::WeChatWidget(QWidget *parent)
     , m_currentEdge(None)
     , m_isResizing(false)
     , m_borderWidth(5)
+
+    , appController(new AppController(this))
+
 {
     ui->setupUi(this);
     setWindowFlags(Qt::FramelessWindowHint);
     setAttribute(Qt::WA_TranslucentBackground);
     setMouseTracking(true);
 
+    ui->rightStackedWidgetPage0->hide();
+
+
+
     // 初始化聊天列表
     chatListView = ui->chatListView;
-    chatListView->setListType(CustomListView::ConversationList);
-    chatListView->setModel(appController->conversationController()->chatListModel());
-    // 连接会话列表菜单信号
-    chatListView->setConversationMenuSignals(
-        appController->conversationController(),
-        SLOT(handleToggleTop(qint64)),
-        SLOT(handleMarkAsUnread(qint64)),
-        SLOT(handleToggleMute(qint64)),
-        SLOT(handleOpenInWindow(qint64)),
-        SLOT(handleDelete(qint64))
-        );
+    chatListDelegate = new ChatListDelegate(chatListView);
     chatListView->setItemDelegate(chatListDelegate);
     chatListView->setUniformItemSizes(true);
+    chatListView->setListType(CustomListView::ConversationList);
+    chatListView->setModel(appController->conversationController()->chatListModel());
+
+    connect(chatListView, &CustomListView::conversationToggleTop,
+            appController->conversationController(), &ConversationController::handleToggleTop);
+
+    connect(chatListView, &CustomListView::conversationMarkAsUnread,
+            appController->conversationController(), &ConversationController::handltoggleReadStatus);
+
+    connect(chatListView, &CustomListView::conversationToggleMute,
+            appController->conversationController(), &ConversationController::handleToggleMute);
+
+    connect(chatListView, &CustomListView::conversationOpenInWindow,
+            appController->conversationController(), &ConversationController::handleOpenInWindow);
+
+    connect(chatListView, &CustomListView::conversationDelete,
+            appController->conversationController(), &ConversationController::handleDelete);
+
+    // 加载会话列表
     appController->conversationController()->loadConversations();
 
-    connect(chatListView->selectionModel(), &QItemSelectionModel::currentChanged,
-            this, [this](const QModelIndex &current, const QModelIndex &previous){
-                qint64 conversationId = current.data(ConversationIdRole).toLongLong();
-                appController->messageController()->setCurrentConversationId(conversationId);
-                qDebug() << "会话id:" << conversationId;
+    // 会话列表选中项改变时触发
+    connect(chatListView->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, [this](const QItemSelection &selected, const QItemSelection &deselected){
+                if (!selected.isEmpty()) {
+                    QModelIndex currentChatPartner = selected.indexes().first();
+                    currentConversation = getCurrentConversation(currentChatPartner);
+                    // 会话显示
+                    ui->chatPartnerLabel->setText(currentConversation.title);
+                    ui->rightStackedWidget->setCurrentWidget(ui->rightStackedWidgetPage0);
+                    ui->rightStackedWidgetPage0->show();
 
-                // 简单延迟滚动
-                QTimer::singleShot(100, this, [this]() {
+                    appController->messageController()->setCurrentConversationId(currentConversation.conversationId);
                     conversationsView->scrollToBottom();
-                });
-            });
+
+                    // 标记已读
+                    appController->conversationController()->clearUnreadCount(currentConversation.conversationId);
+                } else if (!deselected.isEmpty()) {
+                    ui->rightStackedWidgetPage0->hide();
+                }
+    });
+
+
+
 
 
     // 初始化消息列表
     conversationsView = ui->messageListView;
+    chatMessageDelegate = new ChatMessageDelegate(conversationsView);
     conversationsView->setListType(CustomListView::MessageList);
     conversationsView->setModel(appController->messageController()->messagesModel());
-    // 连接消息列表菜单信号
-    conversationsView->setMessageMenuSignals(
-        appController->messageController(),
-        SLOT(handleCopy()),
-        SLOT(handleZoom()),
-        SLOT(handleTranslate()),
-        SLOT(handleSearch()),
-        SLOT(handleForward()),
-        SLOT(handleFavorite()),
-        SLOT(handleRemind()),
-        SLOT(handleMultiSelect()),
-        SLOT(handleQuote()),
-        SLOT(handlePin()),
-        SLOT(handleDelete())
-        );
     conversationsView->setItemDelegate(chatMessageDelegate);
-    conversationsView->setUniformItemSizes(false);
+    conversationsView->setSelectionMode(QAbstractItemView::NoSelection);
     conversationsView->setResizeMode(QListView::Adjust);
-    conversationsView->setMarginRight(0);
-    appController->messageController()->setCurrentUserId(10001);
+    conversationsView->setUniformItemSizes(false);
 
-    // // 滚动到最后一条消息
-    // QTimer::singleShot(100, this, [this]() {
-    //     QModelIndex lastIndex = appController->messageController()->messagesModel()
-    //                                 ->index(appController->messageController()
-    //                                 ->messagesModel()->rowCount() - 1, 0);
-    //     conversationsView->scrollTo(lastIndex, QAbstractItemView::PositionAtBottom);
-    // });
+    connect(conversationsView, &CustomListView::messageCopy,
+            appController->messageController(), &MessageController::handleCopy);
 
-    connect(chatMessageDelegate, &ChatMessageDelegate::imageClicked, this, [&](const QPixmap &img){
-        qDebug()<<"点击图片";
-        if(!mediaDialog) mediaDialog = new MediaDialog();
-        mediaDialog->setAttribute(Qt::WA_DeleteOnClose);
-        mediaDialog->playPixmap(img);
-        mediaDialog->show();
+    connect(conversationsView, &CustomListView::messageZoom,
+            appController->messageController(), &MessageController::handleZoom);
+
+    connect(conversationsView, &CustomListView::messageTranslate,
+            appController->messageController(), &MessageController::handleTranslate);
+
+    connect(conversationsView, &CustomListView::messageSearch,
+            appController->messageController(), &MessageController::handleSearch);
+
+    connect(conversationsView, &CustomListView::messageForward,
+            appController->messageController(), &MessageController::handleForward);
+
+    connect(conversationsView, &CustomListView::messageFavorite,
+            appController->messageController(), &MessageController::handleFavorite);
+
+    connect(conversationsView, &CustomListView::messageRemind,
+            appController->messageController(), &MessageController::handleRemind);
+
+    connect(conversationsView, &CustomListView::messageMultiSelect,
+            appController->messageController(), &MessageController::handleMultiSelect);
+
+    connect(conversationsView, &CustomListView::messageQuote,
+            appController->messageController(), &MessageController::handleQuote);
+
+    connect(conversationsView, &CustomListView::messageDelete,
+            appController->messageController(), &MessageController::handleDelete);
+
+    connect(conversationsView, &CustomListView::loadmoreMsg,
+            appController->messageController(),&MessageController::loadMoreMessages);
+
+    // 处理其他业务如顶置聊天时重新加载，选中加载前的选中项
+    connect(appController->conversationController(), &ConversationController::conversationLoaded,
+        this, [this](){
+        if (currentConversation.conversationId) {
+            ChatListModel *m_model = appController->conversationController()->chatListModel();
+            for (int row = 0; row < m_model->rowCount(); ++row) {
+                QModelIndex index = m_model->index(row, 0);
+                if (index.data(ConversationIdRole).toLongLong() == currentConversation.conversationId) {
+                    chatListView->setCurrentIndex(index);
+                    chatListView->scrollTo(index);
+                    break;
+                }
+            }
+        }
     });
-    connect(chatMessageDelegate, &ChatMessageDelegate::videoClicked, this, [&](const QString &videoPath){
-        qDebug()<<"点击视频";
+
+
+
+
+
+    connect(chatMessageDelegate, &ChatMessageDelegate::rightClicked, conversationsView,
+            &CustomListView::execMessageListMenu);
+    connect(chatMessageDelegate, &ChatMessageDelegate::mediaClicked, this,
+        [&](const qint64 &msgId, const qint64 &conversationId){
+        qDebug()<<"点击媒体";
         if(!mediaDialog) mediaDialog = new MediaDialog();
         mediaDialog->setAttribute(Qt::WA_DeleteOnClose);
-        // media_Dialog->;
+        mediaDialog->setMediaItems(appController->messageController()->getMediaItems(conversationId));
+        mediaDialog->selectMediaByMessageId(msgId);
         mediaDialog->show();
     });
     connect(chatMessageDelegate, &ChatMessageDelegate::fileClicked, this, [&](const QString &filePath){
         qDebug()<<"点击文件";
         bool success = QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
     });
+
+
+
+
 
     //检查信息输入框状态，设置初始样式
     updateSendButtonStyle();
@@ -146,6 +203,24 @@ WeChatWidget::WeChatWidget(QWidget *parent)
 
     qApp->installEventFilter(this);
 
+    // 当前登录用户
+    currentUser = appController->userController()->getCurrentUser();
+
+    QString currentUserAvatar = currentUser.avatarLocalPath;
+    MediaResourceManager* mediaManager = MediaResourceManager::instance();
+    connect(mediaManager, &MediaResourceManager::mediaLoaded, this,
+        [this,currentUserAvatar](const QString& resourcePath, const QPixmap& media, MediaType type){
+        static int zx = 0;
+        if(currentUserAvatar == resourcePath && type == MediaType::Avatar && !zx){
+            ui->avatarPushButton->setIcon(media);
+            zx = 1;
+        }
+    });
+    QPixmap avatar = mediaManager->getMedia(currentUser.avatarLocalPath, QSize(500, 500), MediaType::Avatar, 60);
+    ui->avatarPushButton->setIcon(avatar);
+
+
+    ui->sendTextEdit->textCursor().insertHtml("<img src='D:/wallpaper/image_2.png' width='100' height='100'/>");
 }
 
 
@@ -416,11 +491,6 @@ void WeChatWidget::on_contactsToolButton_clicked()
     QStackedWidget* leftStackedWidget = this->findChild<QStackedWidget*>("leftStackedWidget");
     rightStackedWidget->setCurrentIndex(1);
     leftStackedWidget->setCurrentIndex(1);
-    //顺便关一下右侧弹窗
-    if(rightPopover)
-    {
-        on_rightDialogToolButton_clicked();
-    }
 }
 
 
@@ -430,11 +500,6 @@ void WeChatWidget::on_collectionToolButton_clicked()
     QStackedWidget* leftStackedWidget = this->findChild<QStackedWidget*>("leftStackedWidget");
     rightStackedWidget->setCurrentIndex(2);
     leftStackedWidget->setCurrentIndex(2);
-    //顺便关一下右侧弹窗
-    if(rightPopover)
-    {
-        on_rightDialogToolButton_clicked();
-    }
 }
 
 void WeChatWidget::on_chatInterfaceToolButton_clicked()
@@ -443,11 +508,6 @@ void WeChatWidget::on_chatInterfaceToolButton_clicked()
     QStackedWidget* leftStackedWidget = this->findChild<QStackedWidget*>("leftStackedWidget");
     rightStackedWidget->setCurrentIndex(0);
     leftStackedWidget->setCurrentIndex(0);
-    //顺便关一下右侧弹窗
-    if(rightPopover)
-    {
-        on_rightDialogToolButton_clicked();
-    }
 }
 
 
@@ -464,13 +524,39 @@ void WeChatWidget::on_rightDialogToolButton_clicked()
         anim->start(QAbstractAnimation::DeleteWhenStopped);
         connect(anim,&QPropertyAnimation::finished, rightPopover,&QWidget::close);
     }else{
-        rightPopover = new RightPopover(this->findChild<QWidget*>("rightStackedWidgetPage0"));
+        rightPopover = new RightPopover(ui->rightStackedWidgetPage0);
+        connect(rightPopover,&RightPopover::cloesDialog,this, &WeChatWidget::on_rightDialogToolButton_clicked);
         rightPopover->setAttribute(Qt::WA_DeleteOnClose);
+
+        // 在媒体加载器里异步获取头像
+        QString avatarLocalPath = currentConversation.avatarLocalPath;
+        MediaResourceManager* mediaManager = MediaResourceManager::instance();
+        connect(mediaManager, &MediaResourceManager::mediaLoaded,
+            this, [this,avatarLocalPath](const QString& resourcePath, const QPixmap& media, MediaType type){
+            if(avatarLocalPath == resourcePath && type == MediaType::Avatar){
+                if(rightPopover){
+                    rightPopover->findChild<QPushButton*>("rightAvatarButton")
+                    ->setIcon(QIcon(media));
+                }
+            }
+        });
+        QPixmap friendAvatar = mediaManager->getMedia(avatarLocalPath, QSize(40, 40));
+        rightPopover->findChild<QPushButton*>("rightAvatarButton")
+            ->setIcon(QIcon(friendAvatar));
+
+        QCheckBox *isTopCheckBox = rightPopover->findChild<QCheckBox*>("isTopCheckBox");
+        isTopCheckBox->setChecked(currentConversation.isTop);
+        connect(isTopCheckBox, &QCheckBox::toggled, this,
+            [this](){
+            appController->conversationController()->handleToggleTop(currentConversation.conversationId);
+        });
+
         //先在窗口右外侧看不到的地方显示
-        int startX = this->findChild<QWidget*>("rightStackedWidgetPage0")->width();
-        int startY = this->findChild<QSplitter*>("messageSplitter")->pos().y();
+        int startX = ui->rightStackedWidgetPage0->width();
+        int startY = ui->messageSplitter->pos().y();
         rightPopover->setGeometry(startX,startY,254,this->height());
         rightPopover->show();
+
         //再从右侧滑动出来
         QPropertyAnimation *anim = new QPropertyAnimation(rightPopover,"pos");
         anim->setDuration(300);
@@ -541,16 +627,35 @@ void WeChatWidget::on_avatarPushButton_clicked()
         personalInfoDialog = new PersonalInfoDialog(this);
         personalInfoDialog ->setAttribute(Qt::WA_DeleteOnClose);
 
-        connect(personalInfoDialog->findChild<ImgLabel*>("avatarLabel"),
+        // 数据展示
+        QString avatarLocalPath = currentUser.avatarLocalPath;
+        MediaResourceManager* mediaManager = MediaResourceManager::instance();
+        connect(mediaManager, &MediaResourceManager::mediaLoaded, this,
+            [this,avatarLocalPath](const QString& resourcePath, const QPixmap& media, MediaType type){
+            if(avatarLocalPath == resourcePath && type == MediaType::Avatar){
+                if(personalInfoDialog){
+                    personalInfoDialog ->avatarLabel ->setPixmap(media);
+                }
+            }
+        });
+        QPixmap avatar = mediaManager->getMedia(avatarLocalPath, QSize(500, 500), MediaType::Avatar,0);
+        personalInfoDialog ->avatarLabel ->setPixmap(avatar);
+        personalInfoDialog ->account->setText(currentUser.account);
+        personalInfoDialog ->nickname->setText(currentUser.nickname);
+        personalInfoDialog->region->setText(currentUser.region);
+
+        // 弹窗里头像点击信号连接
+        connect(personalInfoDialog->avatarLabel,
             &ImgLabel::labelClicked, this,
             [&](const QPixmap &pixmap){
                     if(!mediaDialog) mediaDialog = new MediaDialog();
                     mediaDialog->setAttribute(Qt::WA_DeleteOnClose);
-                    mediaDialog->playPixmap(pixmap);
+                    mediaDialog->playSinglePixmap(pixmap);
                     mediaDialog->show();
                     personalInfoDialog->close();});
 
-        QPushButton* btn = this->findChild<QPushButton*>("avatarPushButton");
+        // 弹窗显示与位置
+        QPushButton* btn = ui->avatarPushButton;
         QPoint btnGlobalPos = btn->mapToGlobal(QPoint(0,0));
         personalInfoDialog->showAtPos(QPoint(btnGlobalPos.x()+btn->width(), btnGlobalPos.y()));
     }
@@ -599,8 +704,29 @@ void WeChatWidget::on_pinButton_clicked()
         setWindowFlags(windowFlags() & ~Qt::WindowStaysOnTopHint);
         ui->pinButton->setToolTip("置顶");
     }
-    // 重新显示窗口（设置窗口标志后需要重新显示才能生效）
     show();
 }
 
+Conversation WeChatWidget::getCurrentConversation(const QModelIndex &index)
+{
+    Conversation conversationInfo;
+
+    if (!index.isValid()) {
+        return conversationInfo;
+    }
+
+    conversationInfo.conversationId = index.data(ConversationIdRole).toLongLong();
+    conversationInfo.groupId = index.data(GroupIdRole).toLongLong();
+    conversationInfo.userId = index.data(UserIdRole).toLongLong();
+    conversationInfo.type = index.data(TypeRole).toInt();
+    conversationInfo.title = index.data(TitleRole).toString();
+    conversationInfo.avatar = index.data(AvatarRole).toString();
+    conversationInfo.avatarLocalPath = index.data(AvatarLocalPathRole).toString();
+    conversationInfo.lastMessageContent = index.data(LastMessageContentRole).toString();
+    conversationInfo.lastMessageTime = index.data(LastMessageTimeRole).toLongLong();
+    conversationInfo.unreadCount = index.data(UnreadCountRole).toInt();
+    conversationInfo.isTop = index.data(IsTopRole).toBool();
+
+    return conversationInfo;
+}
 

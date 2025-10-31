@@ -3,6 +3,7 @@
 
 #include <QStyledItemDelegate>
 #include <QSize>
+#include "MediaResourceManager.h"
 
 class ThumbnailDelegate : public QStyledItemDelegate
 {
@@ -25,9 +26,15 @@ private:
     void drawVideoIndicator(QPainter *painter, const QRect &rect) const;
     QPainterPath getRoundedRectPath(const QRect &rect, int radius) const;
 
+private slots:
+    void onMediaLoaded(const QString& resourcePath, const QPixmap& media, MediaType type);
+
+
 private:
     int m_cornerRadius;            // 圆角半径
     int m_videoIndicatorSize;      // 视频指示器大小
+    MediaResourceManager *mediaManager;
+
 };
 
 #endif // THUMBNAILDELEGATE_H

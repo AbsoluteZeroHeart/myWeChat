@@ -25,37 +25,37 @@ QVariant ChatMessagesModel::data(const QModelIndex &index, int role) const
     if (!index.isValid() || index.row() >= m_messages.size())
         return QVariant();
 
-    const ChatMessage &message = m_messages.at(index.row());
+    const Message &message = m_messages.at(index.row());
 
     switch (role) {
     case MessageIdRole:
-        return message.messageId();
+        return message.messageId;
     case ConversationIdRole:
-        return message.conversationId();
+        return message.conversationId;
     case SenderIdRole:
-        return message.senderId();
+        return message.senderId;
     case TypeRole:
-        return static_cast<int>(message.type());
+        return static_cast<int>(message.type);
     case ContentRole:
-        return message.content();
+        return message.content;
     case FilePathRole:
-        return message.filePath();
+        return message.filePath;
     case FileUrlRole:
-        return message.fileUrl();
+        return message.fileUrl;
     case FileSizeRole:
-        return message.fileSize();
+        return message.fileSize;
     case DurationRole:
-        return message.duration();
+        return message.duration;
     case ThumbnailPathRole:
-        return message.thumbnailPath();
+        return message.thumbnailPath;
     case TimestampRole:
-        return message.timestamp();
+        return message.timestamp;
     case SenderNameRole:
-        return message.senderName();
+        return message.senderName;
     case AvatarRole:
-        return message.avatar();
+        return message.avatar;
     case IsOwnRole:
-        return message.senderId() == m_currentUserId;
+        return message.isOwn(m_currentUserId);
     case IsTextRole:
         return message.isText();
     case IsImageRole:
@@ -81,26 +81,26 @@ QVariant ChatMessagesModel::data(const QModelIndex &index, int role) const
     case Qt::DisplayRole:
         // 显示用文本预览
         QString preview;
-        switch (message.type()) {
+        switch (message.type) {
         case MessageType::TEXT:
-            preview = message.content();
+            preview = message.content;
             break;
         case MessageType::IMAGE:
-            preview = "[图片] " + message.content();
+            preview = "[图片] " + message.content;
             break;
         case MessageType::VIDEO:
-            preview = "[视频] " + message.content();
+            preview = "[视频] " + message.content;
             break;
         case MessageType::FILE:
-            preview = "[文件] " + message.content() + " (" + message.formattedFileSize() + ")";
+            preview = "[文件] " + message.content + " (" + message.formattedFileSize() + ")";
             break;
         case MessageType::VOICE:
             preview = "[语音] " + message.formattedDuration();
             break;
         }
         return QString("[%1] %2: %3").arg(
-            FormatTime(message.timestamp()),
-            message.senderName(),
+            FormatTime(message.timestamp),
+            message.senderName,
             preview.left(50)
             );
     }
@@ -113,32 +113,32 @@ bool ChatMessagesModel::setData(const QModelIndex &index, const QVariant &value,
     if (!index.isValid() || index.row() >= m_messages.size())
         return false;
 
-    ChatMessage &message = m_messages[index.row()];
+    Message &message = m_messages[index.row()];
 
     switch (role) {
     case ContentRole:
-        message.setContent(value.toString());
+        message.content = value.toString();
         break;
     case SenderNameRole:
-        message.setSenderName(value.toString());
+        message.senderName = value.toString();
         break;
     case AvatarRole:
-        message.setAvatar(value.toString());
+        message.avatar = value.toString();
         break;
     case FilePathRole:
-        message.setFilePath(value.toString());
+        message.filePath = value.toString();
         break;
     case FileUrlRole:
-        message.setFileUrl(value.toString());
+        message.fileUrl = value.toString();
         break;
     case FileSizeRole:
-        message.setFileSize(value.toLongLong());
+        message.fileSize = value.toLongLong();
         break;
     case DurationRole:
-        message.setDuration(value.toInt());
+        message.duration = value.toInt();
         break;
     case ThumbnailPathRole:
-        message.setThumbnailPath(value.toString());
+        message.thumbnailPath = value.toString();
         break;
     default:
         return false;
@@ -148,14 +148,14 @@ bool ChatMessagesModel::setData(const QModelIndex &index, const QVariant &value,
     return true;
 }
 
-Qt::ItemFlags ChatMessagesModel::flags(const QModelIndex &index) const
-{
-    Qt::ItemFlags flags = QAbstractListModel::flags(index);
-    if (index.isValid()) {
-        flags |= Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable;
-    }
-    return flags;
-}
+// Qt::ItemFlags ChatMessagesModel::flags(const QModelIndex &index) const
+// {
+//     Qt::ItemFlags flags = QAbstractListModel::flags(index);
+//     if (index.isValid()) {
+//         flags |= Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable;
+//     }
+//     return flags;
+// }
 
 QHash<int, QByteArray> ChatMessagesModel::roleNames() const
 {
@@ -188,14 +188,14 @@ QHash<int, QByteArray> ChatMessagesModel::roleNames() const
     return roles;
 }
 
-void ChatMessagesModel::addMessage(const ChatMessage &message)
+void ChatMessagesModel::addMessage(const Message &message)
 {
     beginInsertRows(QModelIndex(), m_messages.size(), m_messages.size());
     m_messages.append(message);
     endInsertRows();
 }
 
-void ChatMessagesModel::insertMessage(int row, const ChatMessage &message)
+void ChatMessagesModel::insertMessage(int row, const Message &message)
 {
     if (row < 0 || row > m_messages.size()) return;
 
@@ -213,7 +213,7 @@ void ChatMessagesModel::removeMessage(int row)
     endRemoveRows();
 }
 
-void ChatMessagesModel::removeMessageById(int messageId)
+void ChatMessagesModel::removeMessageById(qint64 messageId)
 {
     int index = findMessageIndexById(messageId);
     if (index != -1) {
@@ -221,9 +221,9 @@ void ChatMessagesModel::removeMessageById(int messageId)
     }
 }
 
-void ChatMessagesModel::updateMessage(const ChatMessage &message)
+void ChatMessagesModel::updateMessage(const Message &message)
 {
-    int index = findMessageIndexById(message.messageId());
+    int index = findMessageIndexById(message.messageId);
     if (index != -1) {
         m_messages[index] = message;
         QModelIndex modelIndex = createIndex(index, 0);
@@ -231,23 +231,23 @@ void ChatMessagesModel::updateMessage(const ChatMessage &message)
     }
 }
 
-ChatMessage ChatMessagesModel::getMessage(int row) const
+Message ChatMessagesModel::getMessage(int row) const
 {
     if (row >= 0 && row < m_messages.size())
         return m_messages.at(row);
-    return ChatMessage();
+    return Message();
 }
 
-ChatMessage ChatMessagesModel::getMessageById(int messageId) const
+Message ChatMessagesModel::getMessageById(qint64 messageId) const
 {
     int index = findMessageIndexById(messageId);
     if (index != -1) {
         return m_messages.at(index);
     }
-    return ChatMessage();
+    return Message();
 }
 
-void ChatMessagesModel::addMessages(const QVector<ChatMessage> &messages)
+void ChatMessagesModel::addMessages(const QVector<Message> &messages)
 {
     if (messages.isEmpty()) return;
 
@@ -263,22 +263,22 @@ void ChatMessagesModel::clearAll()
     endResetModel();
 }
 
-int ChatMessagesModel::findMessageIndexById(int messageId) const
+int ChatMessagesModel::findMessageIndexById(qint64 messageId) const
 {
     for (int i = 0; i < m_messages.size(); ++i) {
-        if (m_messages.at(i).messageId() == messageId) {
+        if (m_messages.at(i).messageId == messageId) {
             return i;
         }
     }
     return -1;
 }
 
-bool ChatMessagesModel::containsMessage(int messageId) const
+bool ChatMessagesModel::containsMessage(qint64 messageId) const
 {
     return findMessageIndexById(messageId) != -1;
 }
 
-void ChatMessagesModel::setCurrentUserId(int userId)
+void ChatMessagesModel::setCurrentUserId(qint64 userId)
 {
     if (m_currentUserId != userId) {
         m_currentUserId = userId;
@@ -289,17 +289,17 @@ void ChatMessagesModel::setCurrentUserId(int userId)
     }
 }
 
-int ChatMessagesModel::currentUserId() const
+qint64 ChatMessagesModel::currentUserId() const
 {
     return m_currentUserId;
 }
 
-void ChatMessagesModel::setConversationId(int conversationId)
+void ChatMessagesModel::setConversationId(qint64 conversationId)
 {
     m_currentConversationId = conversationId;
 }
 
-int ChatMessagesModel::conversationId() const
+qint64 ChatMessagesModel::conversationId() const
 {
     return m_currentConversationId;
 }

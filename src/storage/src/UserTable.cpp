@@ -11,7 +11,7 @@ UserTable::UserTable(QSqlDatabase database, QObject *parent)
 {
 }
 
-bool UserTable::saveCurrentUser(const QJsonObject& user) {
+bool UserTable::saveCurrentUser(const User& user) {
     if (!m_database.isValid() || !m_database.isOpen()) return false;
 
     // 开始事务
@@ -35,14 +35,14 @@ bool UserTable::saveCurrentUser(const QJsonObject& user) {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         )");
 
-        query.addBindValue(user["user_id"].toVariant().toLongLong());
-        query.addBindValue(user["account"].toString());
-        query.addBindValue(user["nickname"].toString());
-        query.addBindValue(user["avatar"].toString());
-        query.addBindValue(user["avatar_local_path"].toString());
-        query.addBindValue(user["gender"].toInt());
-        query.addBindValue(user["region"].toString());
-        query.addBindValue(user["signature"].toString());
+        query.addBindValue(user.userId);
+        query.addBindValue(user.account);
+        query.addBindValue(user.nickname);
+        query.addBindValue(user.avatar);
+        query.addBindValue(user.avatarLocalPath);
+        query.addBindValue(user.gender);
+        query.addBindValue(user.region);
+        query.addBindValue(user.signature);
         query.addBindValue(1); // is_current = 1
 
         if (!query.exec()) {
@@ -63,28 +63,20 @@ bool UserTable::saveCurrentUser(const QJsonObject& user) {
     }
 }
 
-QJsonObject UserTable::getCurrentUser() {
-    if (!m_database.isValid() || !m_database.isOpen()) return QJsonObject();
+User UserTable::getCurrentUser() {
+    if (!m_database.isValid() || !m_database.isOpen()) return User();
 
     QSqlQuery query(m_database);
     query.prepare("SELECT * FROM users WHERE is_current = 1 LIMIT 1");
 
     if (query.exec() && query.next()) {
-        QJsonObject user;
-        QSqlRecord record = query.record();
-        
-        for (int i = 0; i < record.count(); ++i) {
-            QString fieldName = record.fieldName(i);
-            user[fieldName] = QJsonValue::fromVariant(record.value(i));
-        }
-        
-        return user;
+        return User(query);
     }
     
-    return QJsonObject();
+    return User();
 }
 
-bool UserTable::updateCurrentUser(const QJsonObject& user) {
+bool UserTable::updateCurrentUser(const User& user) {
     return saveCurrentUser(user);
 }
 
@@ -95,7 +87,7 @@ bool UserTable::clearCurrentUser() {
     return query.exec("UPDATE users SET is_current = 0 WHERE is_current = 1");
 }
 
-bool UserTable::saveUser(const QJsonObject& user) {
+bool UserTable::saveUser(const User& user) {
     if (!m_database.isValid() || !m_database.isOpen()) return false;
 
     QSqlQuery query(m_database);
@@ -105,20 +97,20 @@ bool UserTable::saveUser(const QJsonObject& user) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     )");
 
-    query.addBindValue(user["user_id"].toVariant().toLongLong());
-    query.addBindValue(user["account"].toString());
-    query.addBindValue(user["nickname"].toString());
-    query.addBindValue(user["avatar"].toString());
-    query.addBindValue(user["avatar_local_path"].toString());
-    query.addBindValue(user["gender"].toInt());
-    query.addBindValue(user["region"].toString());
-    query.addBindValue(user["signature"].toString());
-    query.addBindValue(user.value("is_current").toInt(0));
+    query.addBindValue(user.userId);
+    query.addBindValue(user.account);
+    query.addBindValue(user.nickname);
+    query.addBindValue(user.avatar);
+    query.addBindValue(user.avatarLocalPath);
+    query.addBindValue(user.gender);
+    query.addBindValue(user.region);
+    query.addBindValue(user.signature);
+    query.addBindValue(user.isCurrent ? 1 : 0);
 
     return query.exec();
 }
 
-bool UserTable::updateUser(const QJsonObject& user) {
+bool UserTable::updateUser(const User& user) {
     return saveUser(user);
 }
 
@@ -132,26 +124,18 @@ bool UserTable::deleteUser(qint64 userId) {
     return query.exec();
 }
 
-QJsonObject UserTable::getUser(qint64 userId) {
-    if (!m_database.isValid() || !m_database.isOpen()) return QJsonObject();
+User UserTable::getUser(qint64 userId) {
+    if (!m_database.isValid() || !m_database.isOpen()) return User();
 
     QSqlQuery query(m_database);
     query.prepare("SELECT * FROM users WHERE user_id = ?");
     query.addBindValue(userId);
 
     if (query.exec() && query.next()) {
-        QJsonObject user;
-        QSqlRecord record = query.record();
-        
-        for (int i = 0; i < record.count(); ++i) {
-            QString fieldName = record.fieldName(i);
-            user[fieldName] = QJsonValue::fromVariant(record.value(i));
-        }
-        
-        return user;
+        return User(query);
     }
     
-    return QJsonObject();
+    return User();
 }
 
 qint64 UserTable::getCurrentUserId()
@@ -161,7 +145,6 @@ qint64 UserTable::getCurrentUserId()
         return -1;
     }
 
-    // 准备查询当前用户的ID
     QSqlQuery query(m_database);
     query.prepare("SELECT user_id FROM users WHERE is_current = 1 LIMIT 1");
 
@@ -187,7 +170,7 @@ QString UserTable::getAvatarLocalPath(qint64 userId)
 
     QSqlQuery query(m_database);
     query.prepare("SELECT avatar_local_path FROM users WHERE user_id = ?");
-    query.addBindValue(userId); // 绑定用户ID参数
+    query.addBindValue(userId);
 
     if (!query.exec()) {
         qWarning() << "Failed to get avatar local path: " << query.lastError().text();
@@ -226,30 +209,22 @@ QString UserTable::getNickname(qint64 userId)
     }
 }
 
-QJsonObject UserTable::getUserByAccount(const QString& account) {
-    if (!m_database.isValid() || !m_database.isOpen()) return QJsonObject();
+User UserTable::getUserByAccount(const QString& account) {
+    if (!m_database.isValid() || !m_database.isOpen()) return User();
 
     QSqlQuery query(m_database);
     query.prepare("SELECT * FROM users WHERE account = ?");
     query.addBindValue(account);
 
     if (query.exec() && query.next()) {
-        QJsonObject user;
-        QSqlRecord record = query.record();
-        
-        for (int i = 0; i < record.count(); ++i) {
-            QString fieldName = record.fieldName(i);
-            user[fieldName] = QJsonValue::fromVariant(record.value(i));
-        }
-        
-        return user;
+        return User(query);
     }
     
-    return QJsonObject();
+    return User();
 }
 
-QJsonArray UserTable::getAllUsers() {
-    QJsonArray users;
+QList<User> UserTable::getAllUsers() {
+    QList<User> users;
     if (!m_database.isValid() || !m_database.isOpen()) return users;
 
     QSqlQuery query(m_database);
@@ -257,15 +232,7 @@ QJsonArray UserTable::getAllUsers() {
 
     if (query.exec()) {
         while (query.next()) {
-            QJsonObject user;
-            QSqlRecord record = query.record();
-            
-            for (int i = 0; i < record.count(); ++i) {
-                QString fieldName = record.fieldName(i);
-                user[fieldName] = QJsonValue::fromVariant(record.value(i));
-            }
-            
-            users.append(user);
+            users.append(User(query));
         }
     }
     

@@ -2,16 +2,23 @@
 #include <QMouseEvent>
 #include <QContextMenuEvent>
 #include <QResizeEvent>
-#include "ConversationTypes.h"
+#include "Conversation.h"
+#include <QMessageBox>
+#include <QPushButton>
+#include "ClickClosePopup.h"
+#include <QVBoxLayout>
+#include <QLabel>
 
 CustomListView::CustomListView(QWidget *parent)
     : QListView(parent), isSyncing(false), remainingScroll(0),
-    m_listType(ConversationList), m_currentConversationId(0)
+    m_listType(DefaultList), m_currentConversationId(0)
 {
     // 基本行为
     setSelectionMode(QAbstractItemView::SingleSelection);
     setMouseTracking(true);
     setAttribute(Qt::WA_Hover, true);
+    setEditTriggers(QAbstractItemView::NoEditTriggers);
+
 
     // 设置平滑滚动
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
@@ -52,7 +59,7 @@ CustomListView::CustomListView(QWidget *parent)
 
     // 确保viewport的event/leave/滚轮事件也被捕获
     viewport()->installEventFilter(this);
-
+    installEventFilter(this);
     //当动画结束并且透明的为0时隐藏overlay
     connect(fadeAnim, &QPropertyAnimation::finished, this, [this](){
         if(opacity->opacity()<= 0.001 && newVsb){
@@ -179,12 +186,14 @@ void CustomListView::updateScrollBarPosition()
 
 void CustomListView::mousePressEvent(QMouseEvent *event)
 {
-    QModelIndex index = indexAt(event->pos());
-    if(index.isValid()){
-        if(selectionModel()->isSelected(index)){
-            selectionModel()->select(index, QItemSelectionModel::Deselect);
-            emit clicked(index);
-            return;
+    if (event->button() == Qt::LeftButton) {
+        QModelIndex index = indexAt(event->pos());
+        if(index.isValid()){
+            if(selectionModel()->isSelected(index)){
+                selectionModel()->select(index, QItemSelectionModel::Deselect);
+                emit clicked(index);
+                return;
+            }
         }
     }
     // 点击时显示滚动条
@@ -247,6 +256,24 @@ void CustomListView::wheelEvent(QWheelEvent *event)
     // 添加到滚动量
     remainingScroll += -totalScrollPixel;
     if(!scrollTimer->isActive()) scrollTimer->start();
+
+
+    // 当用作消息列表时
+    QPoint angleDelta = event->angleDelta();
+
+    if (!angleDelta.isNull() && angleDelta.y() > 0) {
+
+        if(m_listType == MessageList){
+            // 检查是否滚动到顶部附近
+            QScrollBar *scrollBar = this->verticalScrollBar();
+            int scrollPos = scrollBar->value();
+
+            if (scrollPos < 200) {
+                qDebug() << "滚动到顶部附近，触发加载更多数据";
+                emit loadmoreMsg(5);
+            }
+        }
+    }
 
     event->accept();
 }
@@ -458,7 +485,6 @@ void CustomListView::createMessageContextMenu()
     m_remindAction = new QAction("提醒", this);
     m_multiSelectAction = new QAction("多选", this);
     m_quoteAction = new QAction("引用", this);
-    m_pinAction = new QAction("置顶", this);
     m_deleteAction = new QAction("删除", this);
 
     // 为删除项设置特殊类名
@@ -475,23 +501,108 @@ void CustomListView::createMessageContextMenu()
     m_messageMenu->addSeparator();
     m_messageMenu->addAction(m_multiSelectAction);
     m_messageMenu->addAction(m_quoteAction);
-    m_messageMenu->addAction(m_pinAction);
     m_messageMenu->addSeparator();
     m_messageMenu->addAction(m_deleteAction);
 
     // 连接信号
-    connect(m_copyAction, &QAction::triggered, this, &CustomListView::messageCopy);
+    connect(m_copyAction, &QAction::triggered, this, [this](){
+        emit messageCopy(currentMsg);
+    });
     connect(m_zoomAction, &QAction::triggered, this, &CustomListView::messageZoom);
     connect(m_translateAction, &QAction::triggered, this, &CustomListView::messageTranslate);
     connect(m_searchAction, &QAction::triggered, this, &CustomListView::messageSearch);
     connect(m_forwardAction, &QAction::triggered, this, &CustomListView::messageForward);
     connect(m_favoriteAction, &QAction::triggered, this, &CustomListView::messageFavorite);
     connect(m_remindAction, &QAction::triggered, this, &CustomListView::messageRemind);
-    connect(m_multiSelectAction, &QAction::triggered, this, &CustomListView::messageMultiSelect);
+    connect(m_multiSelectAction, &QAction::triggered, this, [this](){
+        // this->setSelectionMode(QAbstractItemView::ExtendedSelection);
+        emit messageMultiSelect();
+    });
     connect(m_quoteAction, &QAction::triggered, this, &CustomListView::messageQuote);
-    connect(m_pinAction, &QAction::triggered, this, &CustomListView::messagePin);
-    connect(m_deleteAction, &QAction::triggered, this, &CustomListView::messageDelete);
+    connect(m_deleteAction, &QAction::triggered, this, [this](){
+        showDeleteConfirmationDialog();
+    });
+
 }
+void CustomListView::showDeleteConfirmationDialog()
+{
+    // 创建自定义确认对话框
+    ClickClosePopup* confirmationDialog = new ClickClosePopup(this);
+    QVBoxLayout* mainLayout = new QVBoxLayout(confirmationDialog);
+
+    // 添加提示文本
+    QLabel* messageLabel = new QLabel("删除该消息？");
+    messageLabel->setAlignment(Qt::AlignCenter);
+    messageLabel->setStyleSheet("font-family: 'Microsoft YaHei'; font-size: 14px; color: #333333; "
+                                "padding: 10px; border: none; background-color: transparent;");
+    // 创建按钮布局
+    QHBoxLayout* buttonLayout = new QHBoxLayout();
+    QPushButton* deleteButton = new QPushButton("删除");
+    QPushButton* cancelButton = new QPushButton("取消");
+
+    // 设置按钮样式
+    deleteButton->setStyleSheet(R"(
+        QPushButton {
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            min-width: 80px;
+            min-height: 30px;
+            font-family: "Microsoft YaHei";
+            font-size: 14px;
+        }
+        QPushButton:hover {
+            background-color: #cc3333;
+        }
+        QPushButton:pressed {
+            background-color: #aa2222;
+        }
+    )");
+
+    cancelButton->setStyleSheet(R"(
+        QPushButton {
+            background-color: #f0f0f0;
+            color: #333333;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            min-width: 80px;
+            min-height: 30px;
+            font-family: "Microsoft YaHei";
+            font-size: 14px;
+        }
+        QPushButton:hover {
+            background-color: #e0e0e0;
+        }
+        QPushButton:pressed {
+            background-color: #d0d0d0;
+        }
+    )");
+
+    // 设置按钮布局
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(deleteButton);
+    buttonLayout->addWidget(cancelButton);
+    buttonLayout->addStretch();
+
+    // 设置主布局
+    mainLayout->addWidget(messageLabel);
+    mainLayout->addLayout(buttonLayout);
+    mainLayout->setContentsMargins(20, 15, 20, 15);
+
+    // 连接按钮信号
+    connect(deleteButton, &QPushButton::clicked, confirmationDialog, [this, confirmationDialog]() {
+        confirmationDialog->close();
+        emit messageDelete(currentMsg);
+    });
+
+    connect(cancelButton, &QPushButton::clicked, confirmationDialog, &ClickClosePopup::close);
+
+    // 显示对话框
+    confirmationDialog->show();
+    confirmationDialog->adjustSize();
+}
+
 
 void CustomListView::contextMenuEvent(QContextMenuEvent *event)
 {
@@ -501,7 +612,6 @@ void CustomListView::contextMenuEvent(QContextMenuEvent *event)
     }
 
     if (m_listType == ConversationList) {
-        // 会话列表：
         m_currentConversationId = index.data(ConversationIdRole).toLongLong();
         if (m_currentConversationId != 0) {
 
@@ -513,46 +623,17 @@ void CustomListView::contextMenuEvent(QContextMenuEvent *event)
 
             m_conversationMenu->exec(event->globalPos());
         }
-    } else if (m_listType == MessageList) {
-        // 消息列表：
-        m_messageMenu->exec(event->globalPos());
     }
 }
-// 设置会话列表菜单信号连接的便捷方法
-void CustomListView::setConversationMenuSignals(QObject *receiver, const char *toggleTopSlot,
-                                                const char *markUnreadSlot, const char *toggleMuteSlot,
-                                                const char *openWindowSlot, const char *deleteSlot)
+
+
+void CustomListView::execMessageListMenu(const QPoint& globalPos, const Message &message)
 {
-    if (toggleTopSlot) connect(this, SIGNAL(conversationToggleTop(qint64)), receiver, toggleTopSlot);
-    if (markUnreadSlot) connect(this, SIGNAL(conversationMarkAsUnread(qint64)), receiver, markUnreadSlot);
-    if (toggleMuteSlot) connect(this, SIGNAL(conversationToggleMute(qint64)), receiver, toggleMuteSlot);
-    if (openWindowSlot) connect(this, SIGNAL(conversationOpenInWindow(qint64)), receiver, openWindowSlot);
-    if (deleteSlot) connect(this, SIGNAL(conversationDelete(qint64)), receiver, deleteSlot);
+    if (m_listType == MessageList) {
+        currentMsg = message;
+        m_messageMenu->exec(globalPos);
+    }
 }
-
-// 设置消息列表菜单信号连接的便捷方法
-void CustomListView::setMessageMenuSignals(QObject *receiver, const char *copySlot,
-                                           const char *zoomSlot, const char *translateSlot,
-                                           const char *searchSlot, const char *forwardSlot,
-                                           const char *favoriteSlot, const char *remindSlot,
-                                           const char *multiSelectSlot, const char *quoteSlot,
-                                           const char *pinSlot, const char *deleteSlot)
-{
-    if (copySlot) connect(this, SIGNAL(messageCopy()), receiver, copySlot);
-    if (zoomSlot) connect(this, SIGNAL(messageZoom()), receiver, zoomSlot);
-    if (translateSlot) connect(this, SIGNAL(messageTranslate()), receiver, translateSlot);
-    if (searchSlot) connect(this, SIGNAL(messageSearch()), receiver, searchSlot);
-    if (forwardSlot) connect(this, SIGNAL(messageForward()), receiver, forwardSlot);
-    if (favoriteSlot) connect(this, SIGNAL(messageFavorite()), receiver, favoriteSlot);
-    if (remindSlot) connect(this, SIGNAL(messageRemind()), receiver, remindSlot);
-    if (multiSelectSlot) connect(this, SIGNAL(messageMultiSelect()), receiver, multiSelectSlot);
-    if (quoteSlot) connect(this, SIGNAL(messageQuote()), receiver, quoteSlot);
-    if (pinSlot) connect(this, SIGNAL(messagePin()), receiver, pinSlot);
-    if (deleteSlot) connect(this, SIGNAL(messageDelete()), receiver, deleteSlot);
-}
-
-
-
 
 
 

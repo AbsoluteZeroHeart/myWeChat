@@ -10,10 +10,15 @@ GroupMemberTable::GroupMemberTable(QSqlDatabase database, QObject *parent)
 {
 }
 
-bool GroupMemberTable::saveGroupMember(const QJsonObject& member)
+bool GroupMemberTable::saveGroupMember(const GroupMember& member)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
+        return false;
+    }
+
+    if (!member.isValid()) {
+        qWarning() << "Invalid group member data";
         return false;
     }
 
@@ -22,25 +27,12 @@ bool GroupMemberTable::saveGroupMember(const QJsonObject& member)
                   "group_id, user_id, nickname, role, join_time, is_contact"
                   ") VALUES (?, ?, ?, ?, ?, ?)");
 
-    qint64 groupId = member.value("group_id").toVariant().toLongLong();
-    qint64 userId = member.value("user_id").toVariant().toLongLong();
-    QString nickname = member.value("nickname").toString();
-    int role = member.value("role").toInt(0);
-
-    qint64 currentTime = QDateTime::currentSecsSinceEpoch();
-    qint64 joinTime = currentTime;
-    if (member.contains("join_time") && !member.value("join_time").isUndefined()) {
-        joinTime = member.value("join_time").toVariant().toLongLong();
-    }
-
-    int isContact = member.value("is_contact").toInt(0);
-
-    query.addBindValue(groupId);
-    query.addBindValue(userId);
-    query.addBindValue(nickname);
-    query.addBindValue(role);
-    query.addBindValue(joinTime);
-    query.addBindValue(isContact);
+    query.addBindValue(member.groupId);
+    query.addBindValue(member.userId);
+    query.addBindValue(member.nickname);
+    query.addBindValue(member.role);
+    query.addBindValue(member.joinTime);
+    query.addBindValue(member.isContact);
 
     if (!query.exec()) {
         qWarning() << "Save group member failed:" << query.lastError().text();
@@ -50,10 +42,15 @@ bool GroupMemberTable::saveGroupMember(const QJsonObject& member)
     return true;
 }
 
-bool GroupMemberTable::updateGroupMember(const QJsonObject& member)
+bool GroupMemberTable::updateGroupMember(const GroupMember& member)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
+        return false;
+    }
+
+    if (!member.isValid()) {
+        qWarning() << "Invalid group member data";
         return false;
     }
 
@@ -62,19 +59,12 @@ bool GroupMemberTable::updateGroupMember(const QJsonObject& member)
                   "nickname = ?, role = ?, join_time = ?, is_contact = ? "
                   "WHERE group_id = ? AND user_id = ?");
 
-    qint64 groupId = member.value("group_id").toVariant().toLongLong();
-    qint64 userId = member.value("user_id").toVariant().toLongLong();
-    QString nickname = member.value("nickname").toString();
-    int role = member.value("role").toInt(0);
-    qint64 joinTime = member.value("join_time").toVariant().toLongLong();
-    int isContact = member.value("is_contact").toInt(0);
-
-    query.addBindValue(nickname);
-    query.addBindValue(role);
-    query.addBindValue(joinTime);
-    query.addBindValue(isContact);
-    query.addBindValue(groupId);
-    query.addBindValue(userId);
+    query.addBindValue(member.nickname);
+    query.addBindValue(member.role);
+    query.addBindValue(member.joinTime);
+    query.addBindValue(member.isContact);
+    query.addBindValue(member.groupId);
+    query.addBindValue(member.userId);
 
     if (!query.exec()) {
         qWarning() << "Update group member failed:" << query.lastError().text();
@@ -123,9 +113,9 @@ bool GroupMemberTable::deleteAllGroupMembers(qint64 groupId)
     return true;
 }
 
-QJsonArray GroupMemberTable::getGroupMembers(qint64 groupId)
+QList<GroupMember> GroupMemberTable::getGroupMembers(qint64 groupId)
 {
-    QJsonArray members;
+    QList<GroupMember> members;
 
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -148,11 +138,11 @@ QJsonArray GroupMemberTable::getGroupMembers(qint64 groupId)
     return members;
 }
 
-QJsonObject GroupMemberTable::getGroupMember(qint64 groupId, qint64 userId)
+GroupMember GroupMemberTable::getGroupMember(qint64 groupId, qint64 userId)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
-        return QJsonObject();
+        return GroupMember();
     }
 
     QSqlQuery query(m_database);
@@ -161,15 +151,15 @@ QJsonObject GroupMemberTable::getGroupMember(qint64 groupId, qint64 userId)
     query.addBindValue(userId);
 
     if (!query.exec() || !query.next()) {
-        return QJsonObject();
+        return GroupMember();
     }
 
     return memberFromQuery(query);
 }
 
-QJsonArray GroupMemberTable::searchGroupMembers(qint64 groupId, const QString& keyword)
+QList<GroupMember> GroupMemberTable::searchGroupMembers(qint64 groupId, const QString& keyword)
 {
-    QJsonArray members;
+    QList<GroupMember> members;
 
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -198,7 +188,7 @@ QJsonArray GroupMemberTable::searchGroupMembers(qint64 groupId, const QString& k
     return members;
 }
 
-bool GroupMemberTable::syncGroupMembers(qint64 groupId, const QJsonArray& members)
+bool GroupMemberTable::syncGroupMembers(qint64 groupId, const QList<GroupMember>& members)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -218,11 +208,12 @@ bool GroupMemberTable::syncGroupMembers(qint64 groupId, const QJsonArray& member
         }
 
         // 批量插入新成员
-        for (const QJsonValue& value : members) {
-            QJsonObject member = value.toObject();
-            member["group_id"] = groupId;
+        for (const GroupMember& member : members) {
+            // 确保每个成员都有正确的groupId
+            GroupMember memberToSave = member;
+            memberToSave.groupId = groupId;
 
-            if (!saveGroupMember(member)) {
+            if (!saveGroupMember(memberToSave)) {
                 throw std::runtime_error("Save member failed");
             }
         }
@@ -304,7 +295,7 @@ bool GroupMemberTable::refreshContactStatus(qint64 userId)
     // 更新所有群中该用户的联系人状态
     QSqlQuery updateQuery(m_database);
     updateQuery.prepare("UPDATE group_members SET is_contact = ? WHERE user_id = ?");
-    updateQuery.addBindValue(isContact ? 1 : 0);
+    updateQuery.addBindValue(isContact);
     updateQuery.addBindValue(userId);
 
     if (!updateQuery.exec()) {
@@ -315,9 +306,9 @@ bool GroupMemberTable::refreshContactStatus(qint64 userId)
     return true;
 }
 
-QJsonArray GroupMemberTable::getGroupAdmins(qint64 groupId)
+QList<GroupMember> GroupMemberTable::getGroupAdmins(qint64 groupId)
 {
-    QJsonArray admins;
+    QList<GroupMember> admins;
 
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -360,16 +351,7 @@ int GroupMemberTable::getGroupMemberCount(qint64 groupId)
 }
 
 // 私有辅助方法
-QJsonObject GroupMemberTable::memberFromQuery(const QSqlQuery& query)
+GroupMember GroupMemberTable::memberFromQuery(const QSqlQuery& query)
 {
-    QJsonObject member;
-
-    member["group_id"] = query.value("group_id").toLongLong();
-    member["user_id"] = query.value("user_id").toLongLong();
-    member["nickname"] = query.value("nickname").toString();
-    member["role"] = query.value("role").toInt();
-    member["join_time"] = query.value("join_time").toLongLong();
-    member["is_contact"] = query.value("is_contact").toInt();
-
-    return member;
+    return GroupMember::fromSqlQuery(query);
 }

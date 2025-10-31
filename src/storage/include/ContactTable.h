@@ -5,10 +5,7 @@
 #include <QtSql/QSqlDatabase>
 #include <QJsonObject>
 #include <QJsonArray>
-#include <QtSql/QSqlQuery>
-#include <QtSql/QSqlError>
-#include <QDateTime>
-#include <QDebug>
+#include "Contact.h"
 
 class ContactTable : public QObject
 {
@@ -18,25 +15,23 @@ public:
     explicit ContactTable(QSqlDatabase database, QObject *parent = nullptr);
 
     // 联系人管理
-    bool saveContact(const QJsonObject& contact);
-    bool updateContact(const QJsonObject& contact);
+    bool saveContact(const Contact& contact);
+    bool updateContact(const Contact& contact);
     bool deleteContact(qint64 userId);
-    QJsonArray getAllContacts();
-    QJsonObject getContact(qint64 userId);
+    QList<Contact> getAllContacts();
+    Contact getContact(qint64 userId);
     QString getRemarkName(qint64 userId);
     bool isContact(qint64 userId);
-    QJsonArray searchContacts(const QString& keyword);
-
+    QList<Contact> searchContacts(const QString& keyword);
+    
     // 联系人状态管理
     bool setContactStarred(qint64 userId, bool starred);
     bool setContactBlocked(qint64 userId, bool blocked);
-    QJsonArray getStarredContacts();
+    QList<Contact> getStarredContacts();
 
 private:
     QSqlDatabase m_database;
-
-    // 辅助方法
-    QJsonObject contactFromQuery(const QSqlQuery& query);
+    
     QString buildSearchCondition(const QString& keyword);
 };
 

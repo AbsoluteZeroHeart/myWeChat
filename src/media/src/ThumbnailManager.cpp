@@ -106,7 +106,7 @@ void ThumbnailManager::getExpiredThumbnailAsync(const QString& thumbnailName,
     m_expiredWatcher->setFuture(future);
 }
 
-QPixmap ThumbnailManager::getWarningThumbnail(const QString& thumbnailPath,const QString &mediaType)
+QPixmap ThumbnailManager::getWarningThumbnail(const QString& thumbnailPath,const QString &mediaType, const QSize &size)
 {
     if(!QFileInfo::exists(thumbnailPath)){
         return createDefaultExpiredThumbnail({100,100}, mediaType);
@@ -280,10 +280,11 @@ bool ThumbnailManager::saveThumbnail(const QImage& image, const QString& thumbna
     return image.save(thumbnailPath, "PNG");
 }
 
-QPixmap ThumbnailManager::createExpiredThumbnail(const QPixmap& baseThumbnail, const QString& mediaType)
+QPixmap ThumbnailManager::createExpiredThumbnail(const QPixmap& baseThumbnail, const QString& mediaType, const QSize size)
 {
     if(baseThumbnail.isNull())return QPixmap();
-    QPixmap resultPixmap = baseThumbnail;
+    QPixmap resultPixmap = baseThumbnail.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+
     QPainter painter(&resultPixmap);
 
     painter.setRenderHint(QPainter::Antialiasing, true);
@@ -398,8 +399,7 @@ void ThumbnailManager::onVideoThumbnailFinished()
             });
             m_videoWatcher->setFuture(future);
         } else {
-            // 使用 lambda 表达式
-            QFuture<QPair<QString, bool>> future = QtConcurrent::run([this, task]() {
+             QFuture<QPair<QString, bool>> future = QtConcurrent::run([this, task]() {
                 return generateImageThumbnailImpl(task);
             });
             m_imageWatcher->setFuture(future);

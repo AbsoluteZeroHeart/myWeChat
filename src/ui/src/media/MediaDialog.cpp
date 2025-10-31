@@ -33,8 +33,7 @@ MediaDialog::MediaDialog(QWidget *parent)
     , m_isResizing(false)
     , m_borderWidth(8)
     // 媒体
-    , m_graphicsView(new CustomGraphicsView(this))
-    , m_videoPlayer(new VideoPlayer(this))
+
 {
     ui->setupUi(this);
 
@@ -51,12 +50,14 @@ MediaDialog::MediaDialog(QWidget *parent)
     splitter->setHandleWidth(0);
 
     mediaStackedWidget = new QStackedWidget(splitter);
+    m_graphicsView =  new CustomGraphicsView(mediaStackedWidget);
+    m_videoPlayer = new VideoPlayer(mediaStackedWidget);
     mediaStackedWidget->addWidget(m_graphicsView);
     mediaStackedWidget->addWidget(m_videoPlayer);
 
     thumbnailView = new CustomListView(splitter);
-    thumbnail_Delegate = new ThumbnailDelegate(this);
-    thumbnailPreview_Model = new ThumbnailPreviewModel(this);
+    thumbnail_Delegate = new ThumbnailDelegate(thumbnailView);
+    thumbnailPreview_Model = new ThumbnailPreviewModel(thumbnailView);
 
     thumbnailView->setModel(thumbnailPreview_Model);
     thumbnailView->setItemDelegate(thumbnail_Delegate);
@@ -68,22 +69,6 @@ MediaDialog::MediaDialog(QWidget *parent)
     thumbnailView->setSpacing(2);
     thumbnailView->setFixedWidth(230);
     on_thumbnailPreviewButton_clicked();
-
-    // 添加媒体项
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "image");
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "video");
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "video");
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "image");
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "image");
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "image");
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "image");
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "video");
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "image");
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "image");
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "image");
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "image");
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "image");
-    thumbnailPreview_Model->addMediaItem("C:/Users/GodPrograms/Pictures/Camera Roll/微信图片_2025-10-11_223555_236.jpg", "image1.jpg", "image");
 
     // 选中项改变
     connect(thumbnailView->selectionModel(), &QItemSelectionModel::currentChanged,
@@ -424,43 +409,22 @@ void MediaDialog::on_fixedToolButton_clicked()
 }
 
 
-void MediaDialog::playPixmap(const QPixmap &pixmap)
+void MediaDialog::playSinglePixmap(const QPixmap &pixmap)
 {
     mediaStackedWidget->setCurrentWidget(m_graphicsView);
     m_graphicsView->loadImage(pixmap);
+    thumbnailPreview_Model->clearAllMediaItems();
 }
 
 void MediaDialog::playMedia(const QString &path, const QString &mediaTytpe)
 {
     if(mediaTytpe=="video"){
-        mediaStackedWidget->setCurrentWidget(m_videoPlayer);
         m_videoPlayer->loadVideo(path);
+        mediaStackedWidget->setCurrentWidget(m_videoPlayer);
     }else if (mediaTytpe=="image") {
-        mediaStackedWidget->setCurrentWidget(m_graphicsView);
         m_graphicsView->loadImage(path);
+        mediaStackedWidget->setCurrentWidget(m_graphicsView);
     }
-}
-
-// 判断是否为图片文件
-bool MediaDialog::isImageFile(const QString &path)
-{
-    QFileInfo fileInfo(path);
-    QString suffix = fileInfo.suffix().toLower();
-
-    // 常见图片格式
-    QStringList imageFormats = {"jpg", "jpeg", "png", "bmp", "gif", "tiff", "svg"};
-    return imageFormats.contains(suffix);
-}
-
-// 判断是否为视频文件
-bool MediaDialog::isVideoFile(const QString &path)
-{
-    QFileInfo fileInfo(path);
-    QString suffix = fileInfo.suffix().toLower();
-
-    // 常见视频格式
-    QStringList videoFormats = {"mp4", "avi", "mov", "mkv", "flv", "wmv", "mpeg", "mpg"};
-    return videoFormats.contains(suffix);
 }
 
 
@@ -530,16 +494,42 @@ void MediaDialog::on_thumbnailPreviewButton_clicked()
 void MediaDialog::onCurrentChanged(const QModelIndex &current, const QModelIndex &previous)
 {
     if(current.isValid()){
+        m_videoPlayer->stop();
         QString thumbPath = current.data(ThumbnailPreviewModel::ThumbnailPathRole).toString();
         QString sourcePath = current.data(ThumbnailPreviewModel::SourceMediaPathRole).toString();
         QString mediaType = current.data(ThumbnailPreviewModel::MediaTypeRole).toString();
+
         QFileInfo fileInfo(sourcePath);
         if(fileInfo.exists() && fileInfo.isFile()){
             playMedia(sourcePath, mediaType);
         }else{
             QPixmap warningPix = ThumbnailManager::getWarningThumbnail(thumbPath, mediaType);
-            playPixmap(warningPix);
+            mediaStackedWidget->setCurrentWidget(m_graphicsView);
+            m_graphicsView->loadImage(warningPix);
         }
+    }
+}
+
+void MediaDialog::setMediaItems(const QList<MediaItem>& items)
+{
+    thumbnailPreview_Model->setMediaItems(items);
+}
+
+void MediaDialog::selectMediaByMessageId(qint64 messageId)
+{
+    if (!thumbnailPreview_Model) {
+        qWarning() << "Thumbnail model is not set";
+        return;
+    }
+
+    QModelIndex index = thumbnailPreview_Model->indexFromMessageId(messageId);
+    if (index.isValid()) {
+
+        thumbnailView->setCurrentIndex(index);
+        thumbnailView->scrollTo(index, QAbstractItemView::PositionAtCenter);
+
+    } else {
+        qWarning() << "Media item with messageId" << messageId << "not found";
     }
 }
 

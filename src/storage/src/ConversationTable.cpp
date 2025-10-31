@@ -1,11 +1,7 @@
 #include "ConversationTable.h"
 #include <QSqlQuery>
 #include <QSqlError>
-#include <QJsonDocument>
 #include <QDateTime>
-#include <QDebug>
-#include <QSqlQuery>
-#include <QSqlRecord>
 
 ConversationTable::ConversationTable(QSqlDatabase database, QObject *parent)
     : QObject(parent)
@@ -13,405 +9,194 @@ ConversationTable::ConversationTable(QSqlDatabase database, QObject *parent)
 {
 }
 
-bool ConversationTable::saveConversation(const QJsonObject& conversation) {
-    if (!m_database.isValid() || !m_database.isOpen()) {
-        qWarning() << "Database is not valid or not open";
-        return false;
-    }
+bool ConversationTable::saveConversation(const Conversation& conversation) {
+    if (!m_database.isValid() || !m_database.isOpen()) return false;
 
     QSqlQuery query(m_database);
     query.prepare(R"(
         INSERT OR REPLACE INTO conversations
-        (conversation_id, group_id, user_id, type, title, avatar, avatar_local_path,
+        (conversation_id, user_id, group_id, type, title, avatar, avatar_local_path, 
          last_message_content, last_message_time, unread_count, is_top)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     )");
 
-    qint64 conversationId = conversation.value("conversation_id").toVariant().toLongLong();
-    query.addBindValue(conversationId);
+    query.addBindValue(conversation.conversationId);
+    query.addBindValue(conversation.userId);
+    query.addBindValue(conversation.groupId);
+    query.addBindValue(conversation.type);
+    query.addBindValue(conversation.title);
+    query.addBindValue(conversation.avatar);
+    query.addBindValue(conversation.avatarLocalPath);
+    query.addBindValue(conversation.lastMessageContent);
+    query.addBindValue(conversation.lastMessageTime);
+    query.addBindValue(conversation.unreadCount);
+    query.addBindValue(conversation.isTop ? 1 : 0);
 
-    int type = conversation.value("type").toInt();
-    if (type == 0) { // 单聊
-        query.addBindValue(QVariant(QMetaType::fromType<qint64>()));
-
-        qint64 userId = 0;
-        if (conversation.contains("user_id") && !conversation.value("user_id").isUndefined()) {
-            userId = conversation.value("user_id").toVariant().toLongLong();
-        }
-        query.addBindValue(userId);
-    } else { // 群聊
-        qint64 groupId = 0;
-        if (conversation.contains("group_id") && !conversation.value("group_id").isUndefined()) {
-            groupId = conversation.value("group_id").toVariant().toLongLong();
-        }
-        query.addBindValue(groupId);
-        query.addBindValue(QVariant(QMetaType::fromType<qint64>()));
-    }
-
-    query.addBindValue(type);
-
-    QString title = conversation.value("title").toString();
-    QString avatar = conversation.value("avatar").toString();
-    QString avatarLocalPath = conversation.value("avatar_local_path").toString();
-    QString lastMessageContent = conversation.value("last_message_content").toString();
-
-    query.addBindValue(title);
-    query.addBindValue(avatar);
-    query.addBindValue(avatarLocalPath);
-    query.addBindValue(lastMessageContent);
-
-    qint64 lastMessageTime = 0;
-    if (conversation.contains("last_message_time") && !conversation.value("last_message_time").isUndefined()) {
-        lastMessageTime = conversation.value("last_message_time").toVariant().toLongLong();
-    }
-    query.addBindValue(lastMessageTime);
-
-    int unreadCount = conversation.value("unread_count").toInt(0);
-    bool isTop = conversation.value("is_top").toBool(false);
-
-    query.addBindValue(unreadCount);
-    query.addBindValue(isTop ? 1 : 0);
-
-    if (!query.exec()) {
-        qWarning() << "Failed to save conversation:" << query.lastError().text();
-        return false;
-    }
-
-    return true;
+    return query.exec();
 }
 
+bool ConversationTable::updateConversationPartial(const Conversation& conversation) {
+    if (!m_database.isValid() || !m_database.isOpen()) return false;
 
-bool ConversationTable::updateConversationPartial(const QJsonObject& conversation)
-{
-    if (!m_database.isValid() || !m_database.isOpen()) {
-        qWarning() << "Database is not valid or not open";
-        return false;
-    }
-
-    if (!conversation.contains("conversation_id")) {
-        qWarning() << "conversation_id is required for update";
-        return false;
-    }
-
-    qint64 conversationId = conversation.value("conversation_id").toVariant().toLongLong();
-
-    // 构建动态的 UPDATE 语句
     QStringList updateFields;
-    QList<QVariant> bindValues;
+    QVariantList bindValues;
 
-    // 检查并添加各个字段
-    if (conversation.contains("group_id")) {
-        updateFields << "group_id = ?";
-        bindValues << conversation.value("group_id").toVariant().toLongLong();
-    }
-
-    if (conversation.contains("user_id")) {
+    // 动态构建更新字段
+    if (conversation.userId > 0) {
         updateFields << "user_id = ?";
-        bindValues << conversation.value("user_id").toVariant().toLongLong();
+        bindValues << conversation.userId;
     }
-
-    if (conversation.contains("type")) {
+    if (conversation.groupId > 0) {
+        updateFields << "group_id = ?";
+        bindValues << conversation.groupId;
+    }
+    if (conversation.type >= 0) {
         updateFields << "type = ?";
-        bindValues << conversation.value("type").toInt();
+        bindValues << conversation.type;
     }
-
-    if (conversation.contains("title")) {
+    if (!conversation.title.isEmpty()) {
         updateFields << "title = ?";
-        bindValues << conversation.value("title").toString();
+        bindValues << conversation.title;
     }
-
-    if (conversation.contains("avatar")) {
+    if (!conversation.avatar.isEmpty()) {
         updateFields << "avatar = ?";
-        bindValues << conversation.value("avatar").toString();
+        bindValues << conversation.avatar;
     }
-
-    if (conversation.contains("avatar_local_path")) {
+    if (!conversation.avatarLocalPath.isEmpty()) {
         updateFields << "avatar_local_path = ?";
-        bindValues << conversation.value("avatar_local_path").toString();
+        bindValues << conversation.avatarLocalPath;
     }
-
-    if (conversation.contains("last_message_content")) {
+    if (!conversation.lastMessageContent.isNull()) {
         updateFields << "last_message_content = ?";
-        bindValues << conversation.value("last_message_content").toString();
+        bindValues << conversation.lastMessageContent;
     }
-
-    if (conversation.contains("last_message_time")) {
+    if (conversation.lastMessageTime > 0) {
         updateFields << "last_message_time = ?";
-        bindValues << conversation.value("last_message_time").toVariant().toLongLong();
+        bindValues << conversation.lastMessageTime;
     }
-
-    if (conversation.contains("unread_count")) {
+    if (conversation.unreadCount >= 0) {
         updateFields << "unread_count = ?";
-        bindValues << conversation.value("unread_count").toInt();
+        bindValues << conversation.unreadCount;
     }
-
-    if (conversation.contains("is_top")) {
+    if (conversation.isTop) {
         updateFields << "is_top = ?";
-        bindValues << (conversation.value("is_top").toBool() ? 1 : 0);
+        bindValues << conversation.isTop;
     }
-
     if (updateFields.isEmpty()) {
-        qWarning() << "No fields to update";
         return false;
     }
 
-    // 构建完整的 SQL 语句
-    QString sql = QString("UPDATE conversations SET %1 WHERE conversation_id = ?")
-                      .arg(updateFields.join(", "));
+    QString sql = "UPDATE conversations SET " + updateFields.join(", ") + " WHERE conversation_id = ?";
+    bindValues << conversation.conversationId;
 
     QSqlQuery query(m_database);
     query.prepare(sql);
-
-    // 添加绑定值
+    
     for (const QVariant& value : std::as_const(bindValues)) {
         query.addBindValue(value);
     }
 
-    // 添加 WHERE 条件
-    query.addBindValue(conversationId);
-
-    if (!query.exec()) {
-        qWarning() << "Failed to update conversation:" << query.lastError().text();
-        return false;
-    }
-
-    return query.numRowsAffected() > 0;
+    return query.exec();
 }
 
 bool ConversationTable::deleteConversation(qint64 conversationId) {
-    if (!m_database.isValid() || !m_database.isOpen()) {
-        qWarning() << "Database is not valid or not open";
-        return false;
-    }
+    if (!m_database.isValid() || !m_database.isOpen()) return false;
 
     QSqlQuery query(m_database);
     query.prepare("DELETE FROM conversations WHERE conversation_id = ?");
     query.addBindValue(conversationId);
 
-    if (!query.exec()) {
-        qWarning() << "Failed to delete conversation:" << query.lastError().text();
-        return false;
-    }
-
-    return query.numRowsAffected() > 0;
+    return query.exec();
 }
 
-QJsonArray ConversationTable::getAllConversations() {
-    QJsonArray conversations;
-    
-    if (!m_database.isValid() || !m_database.isOpen()) {
-        qWarning() << "Database is not valid or not open";
-        return conversations;
-    }
-
+QList<Conversation> ConversationTable::getAllConversations() {
+    QList<Conversation> conversations;
+    if (!m_database.isValid() || !m_database.isOpen()) return conversations;
 
     QSqlQuery query(m_database);
-    query.prepare(R"(
-        SELECT * FROM conversations 
-        ORDER BY is_top DESC, last_message_time DESC
-    )");
+    query.prepare("SELECT * FROM conversations ORDER BY is_top DESC, last_message_time DESC");
 
-    if (!query.exec()) {
-        qWarning() << "Failed to get all conversations:" << query.lastError().text();
-        return conversations;
-    }
-
-    while (query.next()) {
-        QJsonObject conversation;
-        QSqlRecord record = query.record();
-        
-        for (int i = 0; i < record.count(); ++i) {
-            QString fieldName = record.fieldName(i);
-            QVariant value = record.value(i);
-            
-            // 处理可能为空的字段
-            if (value.isNull()) {
-                if (fieldName == "group_id" || fieldName == "user_id") {
-                    conversation[fieldName] = QJsonValue::Null;
-                } else {
-                    conversation[fieldName] = QString();
-                }
-            } else {
-                conversation[fieldName] = QJsonValue::fromVariant(value);
-            }
+    if (query.exec()) {
+        while (query.next()) {
+            conversations.append(Conversation(query));
         }
-        
-        conversations.append(conversation);
     }
-
+    
     return conversations;
 }
 
-QJsonObject ConversationTable::getConversation(qint64 conversationId) {
-    if (!m_database.isValid() || !m_database.isOpen()) {
-        qWarning() << "Database is not valid or not open";
-        return QJsonObject();
-    }
+Conversation ConversationTable::getConversation(qint64 conversationId) {
+    if (!m_database.isValid() || !m_database.isOpen()) return Conversation();
 
     QSqlQuery query(m_database);
     query.prepare("SELECT * FROM conversations WHERE conversation_id = ?");
     query.addBindValue(conversationId);
 
-    if (!query.exec()) {
-        qWarning() << "Failed to get conversation:" << query.lastError().text();
-        return QJsonObject();
+    if (query.exec() && query.next()) {
+        return Conversation(query);
     }
-
-    if (query.next()) {
-        QJsonObject conversation;
-        QSqlRecord record = query.record();
-        
-        for (int i = 0; i < record.count(); ++i) {
-            QString fieldName = record.fieldName(i);
-            QVariant value = record.value(i);
-            
-            // 处理可能为空的字段
-            if (value.isNull()) {
-                if (fieldName == "group_id" || fieldName == "user_id") {
-                    conversation[fieldName] = QJsonValue::Null;
-                } else {
-                    conversation[fieldName] = QString();
-                }
-            } else {
-                conversation[fieldName] = QJsonValue::fromVariant(value);
-            }
-        }
-        
-        return conversation;
-    }
-
-    return QJsonObject();
+    
+    return Conversation();
 }
 
-QJsonObject ConversationTable::getConversationByTarget(qint64 targetId, int type) {
-    if (!m_database.isValid() || !m_database.isOpen()) {
-        qWarning() << "Database is not valid or not open";
-        return QJsonObject();
-    }
+Conversation ConversationTable::getConversationByTarget(qint64 targetId, int type) {
+    if (!m_database.isValid() || !m_database.isOpen()) return Conversation();
 
     QSqlQuery query(m_database);
-    
-    if (type == 0) { // 单聊
-        query.prepare("SELECT * FROM conversations WHERE user_id = ? AND type = 0");
-    } else { // 群聊
-        query.prepare("SELECT * FROM conversations WHERE group_id = ? AND type = 1");
+    if (type == 0) {
+        query.prepare("SELECT * FROM conversations WHERE user_id = ? AND type = ?");
+    } else {
+        query.prepare("SELECT * FROM conversations WHERE group_id = ? AND type = ?");
     }
     
     query.addBindValue(targetId);
+    query.addBindValue(type);
 
-    if (!query.exec()) {
-        qWarning() << "Failed to get conversation by target:" << query.lastError().text();
-        return QJsonObject();
+    if (query.exec() && query.next()) {
+        return Conversation(query);
     }
-
-    if (query.next()) {
-        QJsonObject conversation;
-        QSqlRecord record = query.record();
-        
-        for (int i = 0; i < record.count(); ++i) {
-            QString fieldName = record.fieldName(i);
-            QVariant value = record.value(i);
-            
-            // 处理可能为空的字段
-            if (value.isNull()) {
-                if (fieldName == "group_id" || fieldName == "user_id") {
-                    conversation[fieldName] = QJsonValue::Null;
-                } else {
-                    conversation[fieldName] = QString();
-                }
-            } else {
-                conversation[fieldName] = QJsonValue::fromVariant(value);
-            }
-        }
-        
-        return conversation;
-    }
-
-    return QJsonObject();
+    
+    return Conversation();
 }
 
-
-qint64 ConversationTable::getConversationTargetId(qint64 conversationId)
-{
-    if (!m_database.isValid() || !m_database.isOpen()) {
-        qWarning() << "Database is not valid or not open (getConversationTargetId)";
-        return -1;
-    }
+qint64 ConversationTable::getConversationTargetId(qint64 conversationId) {
+    if (!m_database.isValid() || !m_database.isOpen()) return -1;
 
     QSqlQuery query(m_database);
-    query.prepare(R"(
-        SELECT type, group_id, user_id
-        FROM conversations
-        WHERE conversation_id = ?
-    )");
+    query.prepare("SELECT user_id, group_id, type FROM conversations WHERE conversation_id = ?");
     query.addBindValue(conversationId);
 
-    if (!query.exec()) {
-        qWarning() << "Failed to get conversation target ID: " << query.lastError().text();
-        return -1;
-    }
-
-    if (query.next()) {
+    if (query.exec() && query.next()) {
         int type = query.value("type").toInt();
         if (type == 0) {
-            return query.value("user_id").isNull() ? -1 : query.value("user_id").toLongLong();
-        } else if (type == 1) {
-            return query.value("group_id").isNull() ? -1 : query.value("group_id").toLongLong();
+            return query.value("user_id").toLongLong();
         } else {
-            qWarning() << "Unknown conversation type for ID:" << conversationId;
-            return -1;
+            return query.value("group_id").toLongLong();
         }
-    } else {
-        qWarning() << "Conversation not found for ID: " << conversationId;
-        return -1;
     }
+    
+    return -1;
 }
 
 bool ConversationTable::updateConversationLastMessage(qint64 conversationId, const QString& content, qint64 time) {
-    if (!m_database.isValid() || !m_database.isOpen()) {
-        qWarning() << "Database is not valid or not open";
-        return false;
-    }
+    if (!m_database.isValid() || !m_database.isOpen()) return false;
 
     QSqlQuery query(m_database);
-    query.prepare(R"(
-        UPDATE conversations 
-        SET last_message_content = ?, last_message_time = ? 
-        WHERE conversation_id = ?
-    )");
-    
+    query.prepare("UPDATE conversations SET last_message_content = ?, last_message_time = ? WHERE conversation_id = ?");
     query.addBindValue(content);
     query.addBindValue(time);
     query.addBindValue(conversationId);
 
-    if (!query.exec()) {
-        qWarning() << "Failed to update conversation last message:" << query.lastError().text();
-        return false;
-    }
-
-    return query.numRowsAffected() > 0;
+    return query.exec();
 }
 
-
 bool ConversationTable::setConversationTop(qint64 conversationId, bool top) {
-    if (!m_database.isValid() || !m_database.isOpen()) {
-        qWarning() << "Database is not valid or not open";
-        return false;
-    }
+    if (!m_database.isValid() || !m_database.isOpen()) return false;
 
     QSqlQuery query(m_database);
     query.prepare("UPDATE conversations SET is_top = ? WHERE conversation_id = ?");
     query.addBindValue(top ? 1 : 0);
     query.addBindValue(conversationId);
 
-    if (!query.exec()) {
-        qWarning() << "Failed to set conversation top:" << query.lastError().text();
-        return false;
-    }
-
-    return query.numRowsAffected() > 0;
+    return query.exec();
 }
-
-
-
-

@@ -7,12 +7,11 @@
 #include <QPainterPath>
 #include <QAbstractItemView>
 #include "ChatMessagesModel.h"
-#include "ThumbnailManager.h"
 
 ChatMessageDelegate::ChatMessageDelegate(QObject *parent)
     : QStyledItemDelegate(parent)
 {
-    MediaResourceManager* mediaManager = MediaResourceManager::instance();
+    mediaManager = MediaResourceManager::instance();
     connect(mediaManager, &MediaResourceManager::mediaLoaded,
             this, &ChatMessageDelegate::onMediaLoaded);
 }
@@ -22,13 +21,21 @@ void ChatMessageDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
 {
     if (!index.isValid()) return;
 
-    ChatMessage message = index.data(ChatMessagesModel::FullMessageRole).value<ChatMessage>();
-    bool isOwn = index.data(ChatMessagesModel::IsOwnRole).toBool();
+    // 保存painter状态
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
 
+    // 绘制选中背景
+    if (option.state & QStyle::State_Selected) {
+        QColor selectedColor = QColor(220, 220, 220);
+        painter->fillRect(option.rect, selectedColor);
+    }
+
+    Message message = index.data(ChatMessagesModel::FullMessageRole).value<Message>();
+    bool isOwn = index.data(ChatMessagesModel::IsOwnRole).toBool();
+
     // 根据消息类型调用不同的绘制方法
-    switch (message.type()) {
+    switch (message.type) {
     case MessageType::TEXT:
         paintTextMessage(painter, option, message, isOwn);
         break;
@@ -54,7 +61,7 @@ QSize ChatMessageDelegate::sizeHint(const QStyleOptionViewItem &option,
 {
     if (!index.isValid()) return QSize(100, 30);
 
-    ChatMessage message = index.data(ChatMessagesModel::FullMessageRole).value<ChatMessage>();
+    Message message = index.data(ChatMessagesModel::FullMessageRole).value<Message>();
     int width = option.rect.width();
 
     const int margin = MARGIN;
@@ -67,43 +74,29 @@ QSize ChatMessageDelegate::sizeHint(const QStyleOptionViewItem &option,
     QFontMetrics timeMetrics(timeFont);
     int timeHeight = timeMetrics.height();
 
-    switch (message.type()) {
+    switch (message.type) {
     case MessageType::TEXT: {
         // 计算文本内容所需尺寸
         int maxBubbleWidth = width * 0.6;
         QFont font = option.font;
         font.setPointSizeF(10.5);
         font.setFamily(QStringLiteral("微软雅黑"));
-        QSize textSize = calculateTextSize(message.content(), font, maxBubbleWidth - 2 * bubblePadding);
+        QSize textSize = calculateTextSize(message.content, font, maxBubbleWidth - 2 * bubblePadding);
         int bubbleHeight = textSize.height() + 2 * bubblePadding;
         int avatarAreaHeight = avatarSize + 2 * margin;
         int contentAreaHeight = bubbleHeight + timeHeight + 2 * margin;
         return QSize(width, qMax(avatarAreaHeight, contentAreaHeight));
     }
     case MessageType::IMAGE: {
-        QPixmap preview;
-        if(QFileInfo::exists(message.filePath())){
-            preview.load(message.thumbnailPath());
-        }else{
-            preview = ThumbnailManager::getWarningThumbnail(message.thumbnailPath(), "image");
-        }
-        QPixmap scaled = preview.scaled(200, 300, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        return QSize(width, scaled.height() + timeHeight + 2 * margin);
+        QPixmap thumbnail = mediaManager->getMedia(message.filePath, QSize(200, 300),
+                                             MediaType::ImageThumb,0, message.thumbnailPath);
+        return QSize(width, thumbnail.height() + timeHeight + 2 * margin);
     }
     case MessageType::VIDEO: {
-        QPixmap thumbnail;
-        if(QFileInfo::exists(message.filePath())){
-            thumbnail = QPixmap(message.thumbnailPath());
-            if(thumbnail.isNull()) return QSize(width,100 + 2*margin + timeHeight);
+        QPixmap thumbnail = mediaManager->getMedia(message.filePath, QSize(200, 300),
+                                             MediaType::ImageThumb,0,message.thumbnailPath);
 
-            QPixmap scaled = thumbnail.scaled(200, 300, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            return QSize(width, scaled.height() + timeHeight + 2 * margin);
-        }else {
-            thumbnail = ThumbnailManager::getWarningThumbnail(message.thumbnailPath(), "video");
-
-            QPixmap scaled = thumbnail.scaled(200, 300, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            return QSize(width, scaled.height() + timeHeight + 2 * margin);
-        }
+        return QSize(width, thumbnail.height() + timeHeight + 2 * margin);
     }
     case MessageType::FILE: {
         const int fileBubbleHeight = FILE_BUBBLE_HEIGHT;
@@ -127,51 +120,60 @@ bool ChatMessageDelegate::editorEvent(QEvent *event, QAbstractItemModel *model,
 {
     if (event->type() == QEvent::MouseButtonPress) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-        ChatMessage message = index.data(ChatMessagesModel::FullMessageRole).value<ChatMessage>();
 
-        QRect clickableRect = getClickableRect(option, message);
-        if (clickableRect.contains(mouseEvent->pos())) {
-            switch (message.type()) {
-            case MessageType::IMAGE: {
-                QString imgPath = message.filePath();
-                if (QFileInfo::exists(imgPath)) {
-                    QPixmap pixmap(imgPath);
-                    emit imageClicked(pixmap);
-                } else {
-                    emit imageClicked(ThumbnailManager::getWarningThumbnail(message.thumbnailPath(), "image"));
-                }
-                break;
+        // 只处理右键点击
+        if (mouseEvent->button() == Qt::RightButton) {
+            Message message = index.data(ChatMessagesModel::FullMessageRole).value<Message>();
+            bool isOwn = index.data(ChatMessagesModel::IsOwnRole).toBool();
+
+            QRect clickableRect = getClickableRect(option, message, isOwn);
+            if (clickableRect.contains(mouseEvent->pos())) {
+                QPoint globalPos = option.widget->mapToGlobal(mouseEvent->pos());
+                emit rightClicked(globalPos, message);
+                return true;
             }
-            case MessageType::VIDEO: {
-                QString videoPath = message.filePath();
-                if (QFileInfo::exists(videoPath)) {
-                    emit videoClicked(videoPath);
-                } else {
-                    emit imageClicked(ThumbnailManager::getWarningThumbnail(message.thumbnailPath(),"video"));
-                }
-                break;
-            }
-            case MessageType::FILE:
-                emit fileClicked(message.filePath());
-                break;
-            case MessageType::VOICE:
-                emit voiceClicked(message.filePath());
-                break;
-            case MessageType::TEXT:
-                emit textClicked(message.content());
-                break;
-            default:
-                break;
-            }
-            emit messageClicked(message);
-            return true;
+        }
+        // 左键点击处理
+        else if (mouseEvent->button() == Qt::LeftButton) {
+            return handleLeftClick(mouseEvent, option, index);
         }
     }
     return QStyledItemDelegate::editorEvent(event, model, option, index);
 }
 
+bool ChatMessageDelegate::handleLeftClick(QMouseEvent *mouseEvent, const QStyleOptionViewItem &option, const QModelIndex &index)
+{
+    Message message = index.data(ChatMessagesModel::FullMessageRole).value<Message>();
+    bool isOwn = index.data(ChatMessagesModel::IsOwnRole).toBool();
+
+    QRect clickableRect = getClickableRect(option, message, isOwn);
+    if (!clickableRect.contains(mouseEvent->pos())) {
+        return false;
+    }
+
+    switch (message.type) {
+    case MessageType::IMAGE:
+    case MessageType::VIDEO: {
+        emit mediaClicked(message.messageId, message.conversationId);
+        break;
+    }
+    case MessageType::FILE:
+        emit fileClicked(message.filePath);
+        break;
+    case MessageType::VOICE:
+        emit voiceClicked(message.filePath);
+        break;
+    case MessageType::TEXT:
+        emit textClicked(message.content);
+        break;
+    default:
+        break;
+    }
+    return true;
+}
+
 void ChatMessageDelegate::paintTextMessage(QPainter *painter, const QStyleOptionViewItem &option,
-                                           const ChatMessage &message, bool isOwn) const
+                                           const Message &message, bool isOwn) const
 {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
@@ -203,7 +205,7 @@ void ChatMessageDelegate::paintTextMessage(QPainter *painter, const QStyleOption
     contentFont.setFamily(QStringLiteral("微软雅黑"));
     QFontMetrics contentMetrics(contentFont);
     QRect textRect = contentMetrics.boundingRect(QRect(0, 0, maxBubbleWidth - 2 * bubblePadding, 10000),
-                                                 Qt::TextWordWrap, message.content());
+                                                 Qt::TextWordWrap, message.content);
     // 计算气泡尺寸
     int bubbleWidth = qMin(textRect.width() + 2 * bubblePadding, maxBubbleWidth);
     int bubbleHeight = textRect.height() + 2 * bubblePadding;
@@ -247,7 +249,7 @@ void ChatMessageDelegate::paintTextMessage(QPainter *painter, const QStyleOption
     // 绘制消息内容
     painter->setPen(Qt::black);
     painter->setFont(contentFont);
-    painter->drawText(contentRect, Qt::AlignLeft | Qt::TextWordWrap, message.content());
+    painter->drawText(contentRect, Qt::AlignLeft | Qt::TextWordWrap, message.content);
 
     // 绘制时间戳
     QRect timeRect(bubbleRect.left(), bubbleRect.bottom() + timeSpacing,
@@ -258,17 +260,10 @@ void ChatMessageDelegate::paintTextMessage(QPainter *painter, const QStyleOption
 }
 
 void ChatMessageDelegate::paintImageMessage(QPainter *painter, const QStyleOptionViewItem &option,
-                                            const ChatMessage &message, bool isOwn) const
+                                            const Message &message, bool isOwn) const
 {
-    MediaResourceManager* mediaManager = MediaResourceManager::instance();
-
-    QPixmap preview;
-    if(QFileInfo::exists(message.filePath())){
-        preview = mediaManager->getMedia(message.thumbnailPath(), QSize(200, 300), 
-                                        MediaType::ImageThumb);
-    }else{
-        preview = ThumbnailManager::getWarningThumbnail(message.thumbnailPath(), "image");
-    }
+    QPixmap  thumbnail = mediaManager->getMedia(message.filePath, QSize(200, 300),
+                                        MediaType::ImageThumb,0, message.thumbnailPath);
 
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
@@ -291,17 +286,16 @@ void ChatMessageDelegate::paintImageMessage(QPainter *painter, const QStyleOptio
 
     // 绘制缩略图
     QRect imageRect;
-    QPixmap scaled = preview.scaled(200, 300, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     if (isOwnMessage) {
-        imageRect = QRect(avatarRect.left() - scaled.width() - margin,
+        imageRect = QRect(avatarRect.left() - thumbnail.width() - margin,
                           avatarRect.top(),
-                          scaled.width(), scaled.height());
+                          thumbnail.width(), thumbnail.height());
     } else {
         imageRect = QRect(avatarRect.right() + margin,
                           avatarRect.top(),
-                          scaled.width(), scaled.height());
+                          thumbnail.width(), thumbnail.height());
     }
-    painter->drawPixmap(imageRect, scaled);
+    painter->drawPixmap(imageRect, thumbnail);
 
     // 时间
     QRect timeRect(imageRect.left(), imageRect.bottom() + margin,
@@ -312,16 +306,10 @@ void ChatMessageDelegate::paintImageMessage(QPainter *painter, const QStyleOptio
 }
 
 void ChatMessageDelegate::paintVideoMessage(QPainter *painter, const QStyleOptionViewItem &option,
-                                            const ChatMessage &message,bool isOwn) const
+                                            const Message &message,bool isOwn) const
 {
-    MediaResourceManager* mediaManager = MediaResourceManager::instance();
-    QPixmap thumbnail;
-    if(QFileInfo::exists(message.filePath())){
-        thumbnail = mediaManager->getMedia(message.thumbnailPath(), QSize(200, 300), 
-                                          MediaType::VideoThumb);
-    }else{
-        thumbnail = ThumbnailManager::getWarningThumbnail(message.thumbnailPath(), "image");
-    }
+    QPixmap thumbnail = mediaManager->getMedia(message.filePath, QSize(200, 300),
+                                          MediaType::VideoThumb, 0 , message.thumbnailPath);
 
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
@@ -343,84 +331,27 @@ void ChatMessageDelegate::paintVideoMessage(QPainter *painter, const QStyleOptio
     paintAvatar(painter, avatarRect, message);
 
     QRect videoRect;
-    if (thumbnail.isNull()) {
-        if (isOwnMessage) {
-            videoRect = QRect(avatarRect.left() - margin - 100,
-                              avatarRect.top(), 100, 100);
-        } else {
-            videoRect = QRect(avatarRect.right() + margin,
-                              avatarRect.top(), 100, 100);
-        }
 
-        // 绘制视频背景
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(QColor(50, 50, 50));
-        painter->drawRoundedRect(videoRect, 5, 5);
-
-        // 绘制播放图标
-        painter->setBrush(Qt::white);
-        QPolygon playIcon;
-        int iconSize = 30;
-        playIcon << QPoint(videoRect.center().x() - iconSize/3, videoRect.center().y() - iconSize/2)
-                 << QPoint(videoRect.center().x() - iconSize/3, videoRect.center().y() + iconSize/2)
-                 << QPoint(videoRect.center().x() + iconSize/2, videoRect.center().y());
-        painter->drawPolygon(playIcon);
-
-        // 绘制时长
-        if (message.duration() > 0) {
-            painter->setPen(Qt::white);
-            QFont durationFont = option.font;
-            durationFont.setPointSize(8);
-            painter->setFont(durationFont);
-            QString durationText = QString("%1\"") .arg(message.duration());
-            painter->drawText(videoRect.adjusted(5, 5, -5, -5),
-                              Qt::AlignRight | Qt::AlignBottom, durationText);
-        }
+    if (isOwnMessage) {
+        videoRect = QRect(avatarRect.left() - margin - thumbnail.width(),
+                            avatarRect.top(), thumbnail.width(), thumbnail.height());
     } else {
-        // 绘制缩略图
-        QPixmap scaled = thumbnail.scaled(200, 300, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        if (isOwnMessage) {
-            videoRect = QRect(avatarRect.left() - margin - scaled.width(),
-                              avatarRect.top(), scaled.width(), scaled.height());
-        } else {
-            videoRect = QRect(avatarRect.right() + margin, avatarRect.top(),
-                              scaled.width(), scaled.height());
-        }
-        painter->drawPixmap(videoRect, scaled);
+        videoRect = QRect(avatarRect.right() + margin, avatarRect.top(),
+                            thumbnail.width(), thumbnail.height());
+    }
+    painter->drawPixmap(videoRect, thumbnail);
 
-        // 在缩略图中绘制视频播放标识
-        QRect playRect(videoRect.left() + (videoRect.width() - 50)/2,
-                       videoRect.top() + (videoRect.height()-50)/2,
-                       50, 50);
-
-        painter->save();
-        painter->setBrush(QColor(0, 0, 0, 180));
-        painter->setPen(Qt::NoPen);
-        painter->drawEllipse(playRect);
-
-        // 绘制播放三角形
-        painter->setBrush(Qt::white);
-        QPolygon triangle;
-        triangle << QPoint(playRect.center().x() - 6, playRect.center().y() - 12)
-                 << QPoint(playRect.center().x() - 6, playRect.center().y() + 12)
-                 << QPoint(playRect.center().x() + 12, playRect.center().y());
-        painter->drawPolygon(triangle);
-
-        painter->restore();
-
-        // 绘制时长
-        if (message.duration() > 0) {
-            painter->setPen(Qt::white);
-            painter->setBrush(QColor(0, 0, 0, 150));
-            QFont durationFont = option.font;
-            durationFont.setPointSize(8);
-            painter->setFont(durationFont);
-            QString durationText = message.formattedDuration();
-            QRect durationRect(videoRect.left() + 5, videoRect.bottom() - 20,
-                               videoRect.width() - 10, 15);
-            painter->drawRect(durationRect);
-            painter->drawText(durationRect, Qt::AlignRight | Qt::AlignVCenter, durationText);
-        }
+    // 绘制video时长
+    if (message.duration > 0) {
+        painter->setPen(Qt::white);
+        painter->setBrush(QColor(200, 200, 200, 150));
+        QFont durationFont = option.font;
+        durationFont.setPointSize(8);
+        painter->setFont(durationFont);
+        QString durationText = message.formattedDuration();
+        QRect durationRect(videoRect.left() + 10, videoRect.bottom() - 20,
+                           videoRect.width() - 10, 15);
+        painter->drawText(durationRect, Qt::AlignLeft | Qt::AlignVCenter, durationText);
     }
 
     // 时间
@@ -431,7 +362,7 @@ void ChatMessageDelegate::paintVideoMessage(QPainter *painter, const QStyleOptio
 }
 
 void ChatMessageDelegate::paintFileMessage(QPainter *painter, const QStyleOptionViewItem &option,
-                                           const ChatMessage &message, bool isOwn) const
+                                           const Message &message, bool isOwn) const
 {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
@@ -496,9 +427,9 @@ void ChatMessageDelegate::paintFileMessage(QPainter *painter, const QStyleOption
                    iconWidth, iconHeight);
 
     // 绘制文件类型图标
-    QString fileName = QFileInfo(message.filePath()).fileName();
+    QString fileName = QFileInfo(message.filePath).fileName();
     if (fileName.isEmpty()) {
-        fileName = message.content();
+        fileName = message.content;
     }
     QString fileExtension = getFileExtension(fileName).toLower();
     paintFileIcon(painter, iconRect, fileExtension);
@@ -562,7 +493,7 @@ void ChatMessageDelegate::paintFileMessage(QPainter *painter, const QStyleOption
 }
 
 void ChatMessageDelegate::paintVoiceMessage(QPainter *painter, const QStyleOptionViewItem &option,
-                                            const ChatMessage &message, bool isOwn) const
+                                            const Message &message, bool isOwn) const
 {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
@@ -578,7 +509,7 @@ void ChatMessageDelegate::paintVoiceMessage(QPainter *painter, const QStyleOptio
     const int waveformHeight = WAVEFORM_HEIGHT;
 
     bool isOwnMessage = isOwn;
-    int duration = message.duration(); // 秒数
+    int duration = message.duration; // 秒数
 
     // 计算头像位置
     QRect avatarRect;
@@ -646,13 +577,13 @@ void ChatMessageDelegate::paintVoiceMessage(QPainter *painter, const QStyleOptio
 }
 
 void ChatMessageDelegate::paintAvatar(QPainter *painter, const QRect &avatarRect,
-                                      const ChatMessage &message) const
+                                      const Message &message) const
 {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     MediaResourceManager* mediaManager = MediaResourceManager::instance();
-    QPixmap avatarPixmap = mediaManager->getMedia(message.avatar(), 
+    QPixmap avatarPixmap = mediaManager->getMedia(message.avatar,
                                                  avatarRect.size(), 
                                                  MediaType::Avatar, 5);
     
@@ -671,7 +602,7 @@ void ChatMessageDelegate::paintAvatar(QPainter *painter, const QRect &avatarRect
         iniFont.setPointSize(15);
         painter->setFont(iniFont);
         painter->setPen(QColor(100, 100, 100));
-        QString initial = message.senderName().isEmpty() ? "U" : message.senderName().left(1);
+        QString initial = message.senderName.isEmpty() ? "U" : message.senderName.left(1);
         painter->drawText(avatarRect, Qt::AlignCenter, initial.toUpper());
     }
 
@@ -679,13 +610,13 @@ void ChatMessageDelegate::paintAvatar(QPainter *painter, const QRect &avatarRect
 }
 
 void ChatMessageDelegate::paintTime(QPainter *painter, const QRect &rect, const QStyleOptionViewItem &option,
-                                    const ChatMessage &message, bool isOwnMessage) const
+                                    const Message &message, bool isOwnMessage) const
 {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     // 绘制时间戳
-    QString timeText = FormatTime(message.timestamp());
+    QString timeText = FormatTime(message.timestamp);
     QFont timeFont = option.font;
     timeFont.setPointSizeF(7.5);
     painter->setFont(timeFont);
@@ -927,46 +858,24 @@ QString ChatMessageDelegate::getFileExtension(const QString &fileName) const
 }
 
 QRect ChatMessageDelegate::getClickableRect(const QStyleOptionViewItem &option,
-                                            const ChatMessage &message) const
+                                            const Message &message, const bool &isOwn) const
 {
     const int avatarSize = AVATAR_SIZE;
     const int margin = MARGIN;
-    bool isOwnMessage = message.senderId() == 0;
+    bool isOwnMessage = isOwn;
 
-    switch (message.type()) {
-    case MessageType::IMAGE: {
-        QPixmap preview(message.filePath());
-        if (preview.isNull()) return QRect();
-        QPixmap scaled = preview.scaled(200, 300, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-
+    switch (message.type) {
+    case MessageType::IMAGE:
+    case MessageType::VIDEO: {
+        QPixmap thumbnail = mediaManager->getMedia(message.filePath, QSize(200, 300),
+                                                   MediaType::ImageThumb,0, message.thumbnailPath);
         if (isOwnMessage) {
-            return QRect(option.rect.right() - avatarSize - scaled.width() - 2 * margin,
-                         option.rect.top() + margin, scaled.width(), scaled.height());
+            return QRect(option.rect.right() - avatarSize - thumbnail.width() - 2 * margin,
+                         option.rect.top() + margin, thumbnail.width(), thumbnail.height());
         } else {
             return QRect(option.rect.left() + avatarSize + 2 * margin,
-                         option.rect.top() + margin, scaled.width(), scaled.height());
+                         option.rect.top() + margin, thumbnail.width(), thumbnail.height());
         }
-    }
-    case MessageType::VIDEO: {
-        QRect videoRect;
-        QPixmap thumbnail(message.thumbnailPath());
-
-        int width, height;
-        if (thumbnail.isNull()) {
-            width = 100; height = 100;
-        } else {
-            QPixmap scaled = thumbnail.scaled(200, 300, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            width = scaled.width(); height = scaled.height();
-        }
-
-        if (isOwnMessage) {
-            videoRect = QRect(option.rect.right() - avatarSize - 2 * margin - width,
-                              option.rect.top() + margin, width, height);
-        } else {
-            videoRect = QRect(option.rect.left() + avatarSize + 2 * margin,
-                              option.rect.top() + margin, width, height);
-        }
-        return videoRect;
     }
     case MessageType::FILE: {
         const int fileBubbleWidth = FILE_BUBBLE_WIDTH;
@@ -985,7 +894,7 @@ QRect ChatMessageDelegate::getClickableRect(const QStyleOptionViewItem &option,
         const int minVoiceBubbleWidth = MIN_VOICE_BUBBLE_WIDTH;
         const int maxVoiceBubbleWidth = MAX_VOICE_BUBBLE_WIDTH;
         const int voiceBubbleHeight = VOICE_BUBBLE_HEIGHT;
-        int duration = message.duration(); // 秒数
+        int duration = message.duration; // 秒数
         int voiceBubbleWidth = qMin(maxVoiceBubbleWidth,
                                     minVoiceBubbleWidth + duration * 3);
         QRect voiceBubbleRect;
@@ -1000,6 +909,34 @@ QRect ChatMessageDelegate::getClickableRect(const QStyleOptionViewItem &option,
         }
         return voiceBubbleRect;
     }
+    case MessageType::TEXT: {
+        // 计算文本气泡的矩形区域
+        const int maxBubbleWidth = option.rect.width() * 0.6;
+        const int bubblePadding = BUBBLE_PADDING;
+
+        // 计算文本尺寸
+        QFont contentFont;
+        contentFont.setPointSizeF(10.5);
+        contentFont.setFamily(QStringLiteral("微软雅黑"));
+        QSize textSize = calculateTextSize(message.content, contentFont, maxBubbleWidth - 2 * bubblePadding);
+
+        // 计算气泡尺寸
+        int bubbleWidth = qMin(textSize.width() + 2 * bubblePadding, maxBubbleWidth);
+        int bubbleHeight = textSize.height() + 2 * bubblePadding;
+
+        // 计算气泡位置
+        QRect bubbleRect;
+        if (isOwnMessage) {
+            bubbleRect = QRect(option.rect.right() - margin - avatarSize - margin - bubbleWidth,
+                               option.rect.top() + margin,
+                               bubbleWidth, bubbleHeight);
+        } else {
+            bubbleRect = QRect(option.rect.left() + margin + avatarSize + margin,
+                               option.rect.top() + margin,
+                               bubbleWidth, bubbleHeight);
+        }
+        return bubbleRect;
+    }
     default:
         return QRect();
     }
@@ -1008,9 +945,15 @@ QRect ChatMessageDelegate::getClickableRect(const QStyleOptionViewItem &option,
 
 void ChatMessageDelegate::onMediaLoaded(const QString& resourcePath, const QPixmap& media, MediaType type)
 {
-    // 通知视图更新
     if(QAbstractItemView* view = qobject_cast<QAbstractItemView*>(parent())) {
+
         view->viewport()->update();
+        QAbstractItemModel* model = view->model();
+        if (model) {
+            QModelIndex topLeft = model->index(0, 0);
+            QModelIndex bottomRight = model->index(model->rowCount() - 1, 0);
+            emit model->dataChanged(topLeft, bottomRight);
+        }
     }
 }
 

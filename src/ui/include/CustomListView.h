@@ -8,6 +8,7 @@
 #include <QGraphicsOpacityEffect>
 #include <QMenu>
 #include <QAction>
+#include "Message.h"
 
 class CustomListView: public QListView
 {
@@ -17,7 +18,8 @@ public:
 
     enum ListType {
         ConversationList,  // 会话列表
-        MessageList        // 消息列表
+        MessageList,       // 消息列表
+        DefaultList        // 默认列表
     };
 
     explicit CustomListView(QWidget *parent = nullptr);
@@ -28,18 +30,8 @@ public:
     void setListType(ListType type) { m_listType = type; }
     ListType listType() const { return m_listType; }
 
-    // 设置会话列表的右键菜单信号连接
-    void setConversationMenuSignals(QObject *receiver, const char *toggleTopSlot,
-                                    const char *markUnreadSlot, const char *toggleMuteSlot,
-                                    const char *openWindowSlot, const char *deleteSlot);
-
-    // 设置消息列表的右键菜单信号连接
-    void setMessageMenuSignals(QObject *receiver, const char *copySlot,
-                               const char *zoomSlot, const char *translateSlot,
-                               const char *searchSlot, const char *forwardSlot,
-                               const char *favoriteSlot, const char *remindSlot,
-                               const char *multiSelectSlot, const char *quoteSlot,
-                               const char *pinSlot, const char *deleteSlot);
+    // 显示消息列表菜单
+    void execMessageListMenu(const QPoint& globalPos, const Message &message);
 
 signals:
     // 会话列表菜单信号
@@ -50,7 +42,7 @@ signals:
     void conversationDelete(qint64 conversationId);
 
     // 消息列表菜单信号
-    void messageCopy();
+    void messageCopy(const Message & message);
     void messageZoom();
     void messageTranslate();
     void messageSearch();
@@ -59,13 +51,18 @@ signals:
     void messageRemind();
     void messageMultiSelect();
     void messageQuote();
-    void messagePin();
-    void messageDelete();
+    // void messagePin();
+    void messageDelete(const Message & message);
+
+
+    // 鼠标滚动加载更多消息
+    void loadmoreMsg(int count);
 
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    // void mouseReleaseEvent(QMouseEvent *event) override;
     void enterEvent(QEnterEvent *event)override;
     void leaveEvent(QEvent *event)override;
     bool eventFilter(QObject *watched, QEvent *event)override;
@@ -76,6 +73,7 @@ protected:
 
 private slots:
     void fadeOutOverlay();
+
 
 
 private:
@@ -107,6 +105,7 @@ private:
 private:
     void createConversationContextMenu();
     void createMessageContextMenu();
+    void showDeleteConfirmationDialog();
     void showContextMenu(const QPoint &pos);
 
     ListType m_listType;
@@ -129,13 +128,15 @@ private:
     QAction *m_remindAction;
     QAction *m_multiSelectAction;
     QAction *m_quoteAction;
-    QAction *m_pinAction;
 
     // 菜单公用
     QAction *m_deleteAction;
 
+    // 用做会话列表时
     qint64 m_currentConversationId;
 
+    // 用作消息列表时
+    Message currentMsg;
 
 };
 

@@ -7,7 +7,7 @@ MessageTable::MessageTable(QSqlDatabase database, QObject *parent)
 {
 }
 
-bool MessageTable::saveMessage(const QJsonObject& message)
+bool MessageTable::saveMessage(const Message& message)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -20,17 +20,17 @@ bool MessageTable::saveMessage(const QJsonObject& message)
                   "file_path, file_url, file_size, duration, thumbnail_path, msg_time"
                   ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
-    query.addBindValue(message.value("message_id").toVariant().toLongLong());
-    query.addBindValue(message.value("conversation_id").toVariant().toLongLong());
-    query.addBindValue(message.value("sender_id").toVariant().toLongLong());
-    query.addBindValue(message.value("type").toInt());
-    query.addBindValue(message.value("content").toString());
-    query.addBindValue(message.value("file_path").toString());
-    query.addBindValue(message.value("file_url").toString());
-    query.addBindValue(message.value("file_size").toVariant());
-    query.addBindValue(message.value("duration").toVariant());
-    query.addBindValue(message.value("thumbnail_path").toString());
-    query.addBindValue(message.value("msg_time").toVariant().toLongLong());
+    query.addBindValue(message.messageId);
+    query.addBindValue(message.conversationId);
+    query.addBindValue(message.senderId);
+    query.addBindValue(static_cast<int>(message.type));
+    query.addBindValue(message.content);
+    query.addBindValue(message.filePath);
+    query.addBindValue(message.fileUrl);
+    query.addBindValue(message.fileSize);
+    query.addBindValue(message.duration);
+    query.addBindValue(message.thumbnailPath);
+    query.addBindValue(message.timestamp);
 
     if (!query.exec()) {
         qWarning() << "Save message failed:" << query.lastError().text();
@@ -40,7 +40,7 @@ bool MessageTable::saveMessage(const QJsonObject& message)
     return true;
 }
 
-bool MessageTable::updateMessage(const QJsonObject& message)
+bool MessageTable::updateMessage(const Message& message)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -54,17 +54,17 @@ bool MessageTable::updateMessage(const QJsonObject& message)
                   "thumbnail_path = ?, msg_time = ? "
                   "WHERE message_id = ?");
 
-    query.addBindValue(message.value("conversation_id").toVariant());
-    query.addBindValue(message.value("sender_id").toVariant());
-    query.addBindValue(message.value("type").toInt());
-    query.addBindValue(message.value("content").toString());
-    query.addBindValue(message.value("file_path").toString());
-    query.addBindValue(message.value("file_url").toString());
-    query.addBindValue(message.value("file_size").toVariant());
-    query.addBindValue(message.value("duration").toVariant());
-    query.addBindValue(message.value("thumbnail_path").toString());
-    query.addBindValue(message.value("msg_time").toVariant());
-    query.addBindValue(message.value("message_id").toVariant());
+    query.addBindValue(message.conversationId);
+    query.addBindValue(message.senderId);
+    query.addBindValue(static_cast<int>(message.type));
+    query.addBindValue(message.content);
+    query.addBindValue(message.filePath);
+    query.addBindValue(message.fileUrl);
+    query.addBindValue(message.fileSize);
+    query.addBindValue(message.duration);
+    query.addBindValue(message.thumbnailPath);
+    query.addBindValue(message.timestamp);
+    query.addBindValue(message.messageId);
 
     if (!query.exec()) {
         qWarning() << "Update message failed:" << query.lastError().text();
@@ -93,9 +93,9 @@ bool MessageTable::deleteMessage(qint64 messageId)
     return query.numRowsAffected() > 0;
 }
 
-QJsonArray MessageTable::getMessages(qint64 conversationId, int limit, int offset)
+QList<Message> MessageTable::getMessages(qint64 conversationId, int limit, int offset)
 {
-    QJsonArray messages;
+    QVector<Message> messages;
     
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -104,7 +104,7 @@ QJsonArray MessageTable::getMessages(qint64 conversationId, int limit, int offse
 
     QSqlQuery query(m_database);
     query.prepare("SELECT * FROM messages WHERE conversation_id = ? "
-                  "ORDER BY msg_time ASC LIMIT ? OFFSET ?");
+                  "ORDER BY msg_time DESC LIMIT ? OFFSET ?");
     query.addBindValue(conversationId);
     query.addBindValue(limit);
     query.addBindValue(offset);
@@ -115,17 +115,17 @@ QJsonArray MessageTable::getMessages(qint64 conversationId, int limit, int offse
     }
 
     while (query.next()) {
-        messages.append(messageFromQuery(query));
+        messages.append(Message(query));
     }
 
     return messages;
 }
 
-QJsonObject MessageTable::getMessage(qint64 messageId)
+Message MessageTable::getMessage(qint64 messageId)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
-        return QJsonObject();
+        return Message();
     }
 
     QSqlQuery query(m_database);
@@ -133,17 +133,17 @@ QJsonObject MessageTable::getMessage(qint64 messageId)
     query.addBindValue(messageId);
 
     if (!query.exec() || !query.next()) {
-        return QJsonObject();
+        return Message();
     }
 
-    return messageFromQuery(query);
+    return Message(query);
 }
 
-QJsonObject MessageTable::getLastMessage(qint64 conversationId)
+Message MessageTable::getLastMessage(qint64 conversationId)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
-        return QJsonObject();
+        return Message();
     }
 
     QSqlQuery query(m_database);
@@ -152,10 +152,10 @@ QJsonObject MessageTable::getLastMessage(qint64 conversationId)
     query.addBindValue(conversationId);
 
     if (!query.exec() || !query.next()) {
-        return QJsonObject();
+        return Message();
     }
 
-    return messageFromQuery(query);
+    return Message(query);
 }
 
 bool MessageTable::clearMessages()
@@ -194,10 +194,9 @@ bool MessageTable::clearConversationMessages(qint64 conversationId)
     return true;
 }
 
-
-QJsonArray MessageTable::getMessagesByTimeRange(qint64 conversationId, qint64 startTime, qint64 endTime)
+QList<Message> MessageTable::getMessagesByTimeRange(qint64 conversationId, qint64 startTime, qint64 endTime)
 {
-    QJsonArray messages;
+    QList<Message> messages;
     
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -217,33 +216,11 @@ QJsonArray MessageTable::getMessagesByTimeRange(qint64 conversationId, qint64 st
     }
 
     while (query.next()) {
-        messages.append(messageFromQuery(query));
+        messages.append(Message(query));
     }
 
     return messages;
 }
-
-
-// 私有辅助方法
-QJsonObject MessageTable::messageFromQuery(const QSqlQuery& query)
-{
-    QJsonObject message;
-    
-    message["message_id"] = query.value("message_id").toLongLong();
-    message["conversation_id"] = query.value("conversation_id").toLongLong();
-    message["sender_id"] = query.value("sender_id").toLongLong();
-    message["type"] = query.value("type").toInt();
-    message["content"] = query.value("content").toString();
-    message["file_path"] = query.value("file_path").toString();
-    message["file_url"] = query.value("file_url").toString();
-    message["file_size"] = query.value("file_size").toLongLong();
-    message["duration"] = query.value("duration").toInt();
-    message["thumbnail_path"] = query.value("thumbnail_path").toString();
-    message["msg_time"] = query.value("msg_time").toLongLong();
-    
-    return message;
-}
-
 
 int MessageTable::getMessageCount(qint64 conversationId)
 {
@@ -266,4 +243,36 @@ int MessageTable::getMessageCount(qint64 conversationId)
     }
 
     return 0;
+}
+
+
+QList<MediaItem> MessageTable::getMediaItems(qint64 conversationId)
+{
+    QList<MediaItem> mediaItems;
+
+    if (!m_database.isOpen()) {
+        qWarning() << "Database is not open";
+        return mediaItems;
+    }
+
+    QSqlQuery query(m_database);
+    query.prepare("SELECT * FROM messages WHERE conversation_id = ? "
+                  "AND type IN (1, 2) "
+                  "AND (file_path IS NOT NULL OR file_url IS NOT NULL) "
+                  "ORDER BY msg_time ASC");
+    query.addBindValue(conversationId);
+
+    if (!query.exec()) {
+        qWarning() << "Get media items failed:" << query.lastError().text();
+        return mediaItems;
+    }
+
+    while (query.next()) {
+        MediaItem media = MediaItem::fromSqlQuery(query);
+        if (media.isValid()) {
+            mediaItems.append(media);
+        }
+    }
+
+    return mediaItems;
 }

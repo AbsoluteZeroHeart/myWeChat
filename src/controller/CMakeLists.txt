@@ -1,4 +1,3 @@
-# 收集源文件和头文件
 file(GLOB_RECURSE  CONTROLLER_SOURCES
     "src/*.cpp"
 )
@@ -20,6 +19,8 @@ target_include_directories(controller PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include/messageController
     ${CMAKE_CURRENT_SOURCE_DIR}/include/databaseInitializationController
     ${CMAKE_CURRENT_SOURCE_DIR}/include/userController
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/contactController
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/GroupController
     ${CMAKE_CURRENT_SOURCE_DIR}/../storage/include
 )
 
@@ -27,6 +28,7 @@ target_include_directories(controller PUBLIC
 # 链接依赖
 target_link_libraries(controller PRIVATE
     Qt6::Core
+    Qt6::Widgets
     storage
     common
     media

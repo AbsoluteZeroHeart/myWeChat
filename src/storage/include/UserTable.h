@@ -5,6 +5,7 @@
 #include <QtSql/QSqlDatabase>
 #include <QJsonObject>
 #include <QJsonArray>
+#include "User.h"
 
 class UserTable : public QObject
 {
@@ -13,22 +14,20 @@ class UserTable : public QObject
 public:
     explicit UserTable(QSqlDatabase database, QObject *parent = nullptr);
 
-    // 当前用户管理
-    bool saveCurrentUser(const QJsonObject& user);
-    QJsonObject getCurrentUser();
-    bool updateCurrentUser(const QJsonObject& user);
+    bool saveCurrentUser(const User& user);
+    User getCurrentUser();
+    bool updateCurrentUser(const User& user);
     bool clearCurrentUser();
-
-    // 用户基本信息管理
-    bool saveUser(const QJsonObject& user);
-    bool updateUser(const QJsonObject& user);
+    
+    bool saveUser(const User& user);
+    bool updateUser(const User& user);
     bool deleteUser(qint64 userId);
-    QJsonObject getUser(qint64 userId);
+    User getUser(qint64 userId);
     qint64 getCurrentUserId();
     QString getAvatarLocalPath(qint64 userId);
     QString getNickname(qint64 userId);
-    QJsonObject getUserByAccount(const QString& account);
-    QJsonArray getAllUsers();
+    User getUserByAccount(const QString& account);
+    QList<User> getAllUsers();
     bool userExists(qint64 userId);
 
 private:

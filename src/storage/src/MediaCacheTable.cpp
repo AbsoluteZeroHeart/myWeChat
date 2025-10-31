@@ -10,10 +10,15 @@ MediaCacheTable::MediaCacheTable(QSqlDatabase database, QObject *parent)
 {
 }
 
-bool MediaCacheTable::saveMediaCache(const QJsonObject& mediaInfo)
+bool MediaCacheTable::saveMediaCache(const MediaCache& mediaCache)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
+        return false;
+    }
+
+    if (!mediaCache.isValid()) {
+        qWarning() << "Invalid media cache data";
         return false;
     }
 
@@ -23,22 +28,13 @@ bool MediaCacheTable::saveMediaCache(const QJsonObject& mediaInfo)
                   "access_count, last_access_time, created_time"
                   ") VALUES (?, ?, ?, ?, ?, ?, ?)");
 
-    query.addBindValue(mediaInfo.value("file_path").toString());
-    query.addBindValue(mediaInfo.value("file_type").toInt());
-    query.addBindValue(mediaInfo.value("original_url").toString());
-
-    // 修复：使用 toInt() 而不是 toVariant()
-    query.addBindValue(mediaInfo.value("file_size").toInt());
-
-    qint64 currentTime = QDateTime::currentSecsSinceEpoch();
-    query.addBindValue(mediaInfo.value("access_count").toInt(0));
-
-    // 修复：使用 toInt() 并提供默认值
-    qint64 lastAccessTime = mediaInfo.value("last_access_time").toInt(currentTime);
-    qint64 createdTime = mediaInfo.value("created_time").toInt(currentTime);
-
-    query.addBindValue(lastAccessTime);
-    query.addBindValue(createdTime);
+    query.addBindValue(mediaCache.filePath);
+    query.addBindValue(mediaCache.fileType);
+    query.addBindValue(mediaCache.originalUrl);
+    query.addBindValue(mediaCache.fileSize);
+    query.addBindValue(mediaCache.accessCount);
+    query.addBindValue(mediaCache.lastAccessTime);
+    query.addBindValue(mediaCache.createdTime);
 
     if (!query.exec()) {
         qWarning() << "Save media cache failed:" << query.lastError().text();
@@ -48,10 +44,15 @@ bool MediaCacheTable::saveMediaCache(const QJsonObject& mediaInfo)
     return true;
 }
 
-bool MediaCacheTable::updateMediaCache(const QJsonObject& mediaInfo)
+bool MediaCacheTable::updateMediaCache(const MediaCache& mediaCache)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
+        return false;
+    }
+
+    if (!mediaCache.isValid()) {
+        qWarning() << "Invalid media cache data";
         return false;
     }
 
@@ -61,17 +62,13 @@ bool MediaCacheTable::updateMediaCache(const QJsonObject& mediaInfo)
                   "access_count = ?, last_access_time = ?, created_time = ? "
                   "WHERE file_path = ?");
 
-    query.addBindValue(mediaInfo.value("file_type").toInt());
-    query.addBindValue(mediaInfo.value("original_url").toString());
-
-    // 修复：使用 toInt() 而不是 toVariant()
-    query.addBindValue(mediaInfo.value("file_size").toInt());
-    query.addBindValue(mediaInfo.value("access_count").toInt(0));
-
-    // 修复：使用 toInt() 而不是 toVariant()
-    query.addBindValue(mediaInfo.value("last_access_time").toInt());
-    query.addBindValue(mediaInfo.value("created_time").toInt());
-    query.addBindValue(mediaInfo.value("file_path").toString());
+    query.addBindValue(mediaCache.fileType);
+    query.addBindValue(mediaCache.originalUrl);
+    query.addBindValue(mediaCache.fileSize);
+    query.addBindValue(mediaCache.accessCount);
+    query.addBindValue(mediaCache.lastAccessTime);
+    query.addBindValue(mediaCache.createdTime);
+    query.addBindValue(mediaCache.filePath);
 
     if (!query.exec()) {
         qWarning() << "Update media cache failed:" << query.lastError().text();
@@ -100,11 +97,11 @@ bool MediaCacheTable::deleteMediaCache(const QString& filePath)
     return query.numRowsAffected() > 0;
 }
 
-QJsonObject MediaCacheTable::getMediaCache(const QString& filePath)
+MediaCache MediaCacheTable::getMediaCache(const QString& filePath)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
-        return QJsonObject();
+        return MediaCache();
     }
 
     QSqlQuery query(m_database);
@@ -112,17 +109,17 @@ QJsonObject MediaCacheTable::getMediaCache(const QString& filePath)
     query.addBindValue(filePath);
 
     if (!query.exec() || !query.next()) {
-        return QJsonObject();
+        return MediaCache();
     }
 
     return mediaFromQuery(query);
 }
 
-QJsonObject MediaCacheTable::getMediaCacheByUrl(const QString& originalUrl)
+MediaCache MediaCacheTable::getMediaCacheByUrl(const QString& originalUrl)
 {
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
-        return QJsonObject();
+        return MediaCache();
     }
 
     QSqlQuery query(m_database);
@@ -130,7 +127,7 @@ QJsonObject MediaCacheTable::getMediaCacheByUrl(const QString& originalUrl)
     query.addBindValue(originalUrl);
 
     if (!query.exec() || !query.next()) {
-        return QJsonObject();
+        return MediaCache();
     }
 
     return mediaFromQuery(query);
@@ -196,9 +193,9 @@ bool MediaCacheTable::updateMediaAccess(const QString& filePath)
     return query.numRowsAffected() > 0;
 }
 
-QJsonArray MediaCacheTable::getLeastAccessedFiles(int limit)
+QList<MediaCache> MediaCacheTable::getLeastAccessedFiles(int limit)
 {
-    QJsonArray files;
+    QList<MediaCache> files;
 
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -223,9 +220,9 @@ QJsonArray MediaCacheTable::getLeastAccessedFiles(int limit)
     return files;
 }
 
-QJsonArray MediaCacheTable::getMediaCacheByType(int fileType)
+QList<MediaCache> MediaCacheTable::getMediaCacheByType(int fileType)
 {
-    QJsonArray files;
+    QList<MediaCache> files;
 
     if (!m_database.isOpen()) {
         qWarning() << "Database is not open";
@@ -333,18 +330,7 @@ bool MediaCacheTable::cleanupCache(qint64 maxSize)
 }
 
 // 私有辅助方法
-QJsonObject MediaCacheTable::mediaFromQuery(const QSqlQuery& query)
+MediaCache MediaCacheTable::mediaFromQuery(const QSqlQuery& query)
 {
-    QJsonObject media;
-
-    media["cache_id"] = query.value("cache_id").toLongLong();
-    media["file_path"] = query.value("file_path").toString();
-    media["file_type"] = query.value("file_type").toInt();
-    media["original_url"] = query.value("original_url").toString();
-    media["file_size"] = query.value("file_size").toLongLong();
-    media["access_count"] = query.value("access_count").toInt();
-    media["last_access_time"] = query.value("last_access_time").toLongLong();
-    media["created_time"] = query.value("created_time").toLongLong();
-
-    return media;
+    return MediaCache::fromSqlQuery(query);
 }

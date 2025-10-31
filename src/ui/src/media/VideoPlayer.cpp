@@ -25,6 +25,8 @@ VideoPlayer::VideoPlayer(QWidget *parent)
     , m_fullscreenBtn(nullptr)
 {
     setupUI();
+    m_videoWidget->setVisible(true);
+
     setupConnections();
 
     this->setMouseTracking(true);
@@ -378,7 +380,7 @@ void VideoPlayer::seekVideo(int position)
 
 void VideoPlayer::changePlaybackRate(const QString &rate)
 {
-    m_player->setPlaybackRate(rate.left(rate.length() - 1).toDouble());
+    m_player->setPlaybackRate(QStringView(rate).left(rate.length() - 1).toDouble());
 }
 
 void VideoPlayer::changeVolume(int volume)
@@ -448,11 +450,14 @@ void VideoPlayer::loadVideo(const QString &path)
 
     // 判断是本地文件还是网络URL
     if (path.startsWith("http://") || path.startsWith("https://")) {
-        // 网络视频
         m_player->setSource(QUrl(path));
     } else {
-        // 本地文件
         m_player->setSource(QUrl::fromLocalFile(videoUrl));
+        qDebug()<<"播放地址"<<videoUrl;
+    }
+    if (m_videoWidget) {
+        m_videoWidget->update();
+        m_videoWidget->repaint();
     }
 }
 
@@ -461,6 +466,6 @@ void VideoPlayer::stop()
 {
     if (m_player) {
         m_player->stop();
-        m_player->setSource(QUrl()); // 清除媒体源
+        m_player->setSource(QUrl());
     }
 }

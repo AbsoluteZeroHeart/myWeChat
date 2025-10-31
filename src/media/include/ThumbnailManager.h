@@ -59,7 +59,7 @@ public:
                                   const QString& sourcePath = "");
 
     // 获取警告缩略图
-    static QPixmap getWarningThumbnail(const QString& thumbnailName, const QString &mediaType);
+    static QPixmap getWarningThumbnail(const QString& thumbnailPath, const QString &mediaType, const QSize &size = QSize(200,300));
 
     // 检查缩略图是否存在
     bool thumbnailExists(const QString& thumbnailName);
@@ -119,7 +119,7 @@ private:
     bool saveThumbnail(const QImage& image, const QString& thumbnailPath);
 
     // 创建过期提示的缩略图
-    static QPixmap createExpiredThumbnail(const QPixmap& baseThumbnail, const QString& mediaType);
+    static QPixmap createExpiredThumbnail(const QPixmap& baseThumbnail, const QString& mediaType, const QSize size = QSize(200,300));
     static QPixmap createDefaultExpiredThumbnail(const QSize& size, const QString& mediaType);
 };
 

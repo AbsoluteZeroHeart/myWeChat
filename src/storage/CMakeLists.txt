@@ -15,6 +15,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Sql)
 target_link_libraries(storage PRIVATE
     Qt6::Core
     Qt6::Sql
+    common
 )
 
 

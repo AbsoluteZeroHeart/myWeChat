@@ -6,6 +6,8 @@
 #include <QMenu>
 #include <QPushButton>
 #include <QToolButton>
+#include "Conversation.h"
+#include "User.h"
 
 namespace Ui {
 class WeChatWidget;
@@ -115,10 +117,12 @@ private:
     ChatMessageDelegate *chatMessageDelegate;
     CustomListView *conversationsView;
 
+    Conversation currentConversation;
+    User currentUser;
 
     void updateSendButtonStyle();//更新发送按钮样式
 
-
+    Conversation getCurrentConversation(const QModelIndex &index);
 
 };
 

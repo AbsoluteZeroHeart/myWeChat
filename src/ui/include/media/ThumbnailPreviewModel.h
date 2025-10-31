@@ -6,25 +6,8 @@
 #include <QPixmap>
 #include <QString>
 #include <QSize>
+#include "MediaItem.h"
 
-
-// 媒体项数据结构
-struct MediaItem {
-    QString thumbnailPath;    // 缩略图路径
-    QString sourceMediaPath;  // 源媒体路径
-    QString mediaType;        // 媒体类型
-    QPixmap thumbnail;        // 加载的缩略图
-    bool thumbnailLoaded;     // 缩略图是否已加载
-
-    MediaItem(const QString& thumbPath = "",
-              const QString& sourcePath = "",
-              const QString&type = "image")
-        : thumbnailPath(thumbPath)
-        , sourceMediaPath(sourcePath)
-        , mediaType(type)
-        , thumbnailLoaded(false)
-    {}
-};
 
 class ThumbnailPreviewModel : public QAbstractListModel
 {
@@ -35,8 +18,8 @@ public:
         ThumbnailPathRole = Qt::UserRole + 1,
         SourceMediaPathRole,
         MediaTypeRole,
-        ThumbnailPixmapRole,
-        ItemSizeRole
+        MessageIdRole,
+        FullMediaRole,
     };
 
     explicit ThumbnailPreviewModel(QObject *parent = nullptr);
@@ -52,31 +35,16 @@ public:
     void clearAllMediaItems();
     void setMediaItems(const QList<MediaItem>& items);
 
-    // 缩略图管理
-    void loadThumbnail(int index);
-    void loadAllThumbnails();
-    void setThumbnailSize(const QSize& size);
-    QSize getThumbnailSize() const;
+    QModelIndex indexFromMessageId(qint64 messageId) const;
+    int rowFromMessageId(qint64 messageId) const;
 
-    // 获取媒体项信息
-    MediaItem getMediaItem(int index) const;
-    QString getSourceMediaPath(int index) const;
-    QString getThumbnailPath(int index) const;
 
 protected:
     QHash<int, QByteArray> roleNames() const override;
 
-signals:
-    // 当缩略图加载完成时发射
-    void thumbnailLoaded(int index);
-    // 当媒体项需要被展示时发射（由委托触发）
-    void mediaItemSelected(const QString& thumbnailPath, const QString& sourceMediaPath, const QString& mediaType);
-
 private:
     QList<MediaItem> m_mediaItems;
-    QSize m_thumbnailSize;
 
-    void loadThumbnailForItem(MediaItem& item) const;
 };
 
 #endif // THUMBNAILPREVIEWMODEL_H

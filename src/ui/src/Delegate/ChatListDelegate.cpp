@@ -1,5 +1,5 @@
 #include "ChatListDelegate.h"
-#include "ConversationTypes.h"
+#include "Conversation.h"
 #include <QPainter>
 #include <QDateTime>
 #include <QPainterPath>
@@ -163,7 +163,6 @@ QSize ChatListDelegate::sizeHint(const QStyleOptionViewItem &option,
 
 void ChatListDelegate::onMediaLoaded(const QString& resourcePath, const QPixmap& media, MediaType type)
 {
-    // 只处理头像类型的资源
     if(type == MediaType::Avatar) {
         // 通知视图更新
         if(QAbstractItemView* view = qobject_cast<QAbstractItemView*>(parent())) {

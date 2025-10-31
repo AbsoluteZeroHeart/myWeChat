@@ -78,7 +78,7 @@
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_7">
         <item>
-         <widget class="QPushButton" name="pushButton_3">
+         <widget class="QPushButton" name="rightAvatarButton">
           <property name="minimumSize">
            <size>
             <width>40</width>
@@ -261,6 +261,9 @@ QToolButton:disabled {
         </item>
         <item>
          <widget class="QCheckBox" name="checkBox">
+          <property name="styleSheet">
+           <string notr="true"/>
+          </property>
           <property name="text">
            <string/>
           </property>
@@ -301,7 +304,10 @@ QToolButton:disabled {
          </spacer>
         </item>
         <item>
-         <widget class="QCheckBox" name="checkBox_2">
+         <widget class="QCheckBox" name="isTopCheckBox">
+          <property name="styleSheet">
+           <string notr="true"/>
+          </property>
           <property name="text">
            <string/>
           </property>

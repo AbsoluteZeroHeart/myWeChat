@@ -21,19 +21,19 @@ UserController::~UserController()
 }
 
 bool UserController::login(const QString& account, const QString& password)
-{    
-    // 这里应该是网络请求验证账号密码
-    // 模拟登录成功，实际项目中需要调用网络接口
-    QJsonObject user = m_dataAccessContext->userTable()->getUserByAccount(account);
-    if (user.isEmpty()) {
+{
+    // 暂时不实现网络请求验证账号密码
+    // 模拟登录成功
+    User user = m_dataAccessContext->userTable()->getUserByAccount(account);
+    if (!user.isValid()) {
         qWarning() << "Login failed: user not found -" << account;
         return false;
     }
     
     // 设置为当前用户
-    user["is_current"] = 1;
+    user.isCurrent = true;
     if (m_dataAccessContext->userTable()->saveCurrentUser(user)) {
-        m_currentUserId = user["user_id"].toVariant().toLongLong();
+        m_currentUserId = user.userId;
         emit userLoggedIn(user);
         emit currentUserChanged(user);
         qInfo() << "User logged in:" << account;
@@ -61,7 +61,7 @@ bool UserController::isLoggedIn() const
     return m_currentUserId > 0;
 }
 
-QJsonObject UserController::getCurrentUser()
+User UserController::getCurrentUser()
 {    
     return m_dataAccessContext->userTable()->getCurrentUser();
 }
@@ -71,13 +71,13 @@ qint64 UserController::getCurrentUserId()
     return m_dataAccessContext->userTable()->getCurrentUserId();
 }
 
-bool UserController::updateCurrentUser(const QJsonObject& user)
+bool UserController::updateCurrentUser(const User& user)
 {    
-    QJsonObject userToUpdate = user;
-    userToUpdate["is_current"] = 1;
+    User userToUpdate = user;
+    userToUpdate.isCurrent = true;
     
     if (m_dataAccessContext->userTable()->updateCurrentUser(userToUpdate)) {
-        m_currentUserId = userToUpdate["user_id"].toVariant().toLongLong();
+        m_currentUserId = userToUpdate.userId;
         emit userProfileUpdated(userToUpdate);
         emit currentUserChanged(userToUpdate);
         return true;
@@ -86,12 +86,12 @@ bool UserController::updateCurrentUser(const QJsonObject& user)
     return false;
 }
 
-bool UserController::updateCurrentUserProfile(const QJsonObject& profileUpdates)
+bool UserController::updateCurrentUserProfile(const User& profileUpdates)
 {    
-    QJsonObject currentUser = getCurrentUser();
-    if (currentUser.isEmpty()) return false;
+    User currentUser = getCurrentUser();
+    if (!currentUser.isValid()) return false;
     
-    QJsonObject updatedUser = mergeJsonObjects(currentUser, profileUpdates);
+    User updatedUser = mergeUserData(currentUser, profileUpdates);
     return updateCurrentUser(updatedUser);
 }
 
@@ -100,7 +100,7 @@ bool UserController::clearCurrentUser()
     return logout();
 }
 
-bool UserController::saveUser(const QJsonObject& user)
+bool UserController::saveUser(const User& user)
 {
     if (!validateUserData(user)) {
         qWarning() << "Save user failed: invalid user data";
@@ -116,7 +116,7 @@ bool UserController::saveUser(const QJsonObject& user)
     return false;
 }
 
-bool UserController::updateUser(const QJsonObject& user)
+bool UserController::updateUser(const User& user)
 {    
     if (!validateUserData(user)) {
         qWarning() << "Update user failed: invalid user data";
@@ -125,7 +125,7 @@ bool UserController::updateUser(const QJsonObject& user)
     
     if (m_dataAccessContext->userTable()->updateUser(user)) {
         // 如果是当前用户，发送信号
-        if (user["user_id"].toVariant().toLongLong() == m_currentUserId) {
+        if (user.userId == m_currentUserId) {
             emit userProfileUpdated(user);
             emit currentUserChanged(user);
         } else {
@@ -153,17 +153,17 @@ bool UserController::deleteUser(qint64 userId)
     return false;
 }
 
-QJsonObject UserController::getUser(qint64 userId)
+User UserController::getUser(qint64 userId)
 {    
     return m_dataAccessContext->userTable()->getUser(userId);
 }
 
-QJsonObject UserController::getUserByAccount(const QString& account)
+User UserController::getUserByAccount(const QString& account)
 {    
     return m_dataAccessContext->userTable()->getUserByAccount(account);
 }
 
-QJsonArray UserController::getAllUsers()
+QList<User> UserController::getAllUsers()
 {    
     return m_dataAccessContext->userTable()->getAllUsers();
 }
@@ -187,8 +187,8 @@ bool UserController::updateNickname(const QString& nickname)
 {
     if (!isLoggedIn()) return false;
     
-    QJsonObject updates;
-    updates["nickname"] = nickname;
+    User updates;
+    updates.nickname = nickname;
     return updateCurrentUserProfile(updates);
 }
 
@@ -196,12 +196,12 @@ bool UserController::updateAvatar(const QString& avatarUrl, const QString& local
 {
     if (!isLoggedIn()) return false;
     
-    QJsonObject updates;
-    updates["avatar"] = avatarUrl;
+    User updates;
+    updates.avatar = avatarUrl;
     if (!localPath.isEmpty()) {
-        updates["avatar_local_path"] = localPath;
+        updates.avatarLocalPath = localPath;
     } else {
-        updates["avatar_local_path"] = generateTempAvatarPath(avatarUrl);
+        updates.avatarLocalPath = generateTempAvatarPath(avatarUrl);
     }
     return updateCurrentUserProfile(updates);
 }
@@ -210,8 +210,8 @@ bool UserController::updateSignature(const QString& signature)
 {
     if (!isLoggedIn()) return false;
     
-    QJsonObject updates;
-    updates["signature"] = signature;
+    User updates;
+    updates.signature = signature;
     return updateCurrentUserProfile(updates);
 }
 
@@ -219,8 +219,8 @@ bool UserController::updateGender(int gender)
 {
     if (!isLoggedIn()) return false;
     
-    QJsonObject updates;
-    updates["gender"] = gender;
+    User updates;
+    updates.gender = gender;
     return updateCurrentUserProfile(updates);
 }
 
@@ -228,18 +228,18 @@ bool UserController::updateRegion(const QString& region)
 {
     if (!isLoggedIn()) return false;
     
-    QJsonObject updates;
-    updates["region"] = region;
+    User updates;
+    updates.region = region;
     return updateCurrentUserProfile(updates);
 }
 
-bool UserController::batchSaveUsers(const QJsonArray& users)
+bool UserController::batchSaveUsers(const QList<User>& users)
 {    
     bool allSuccess = true;
-    for (const QJsonValue& value : users) {
-        if (!saveUser(value.toObject())) {
+    for (const User& user : users) {
+        if (!saveUser(user)) {
             allSuccess = false;
-            qWarning() << "Batch save failed for user:" << value.toObject()["user_id"].toVariant().toLongLong();
+            qWarning() << "Batch save failed for user:" << user.userId;
         }
     }
     
@@ -250,27 +250,25 @@ bool UserController::batchSaveUsers(const QJsonArray& users)
     return allSuccess;
 }
 
-bool UserController::batchUpdateUsers(const QJsonArray& users)
+bool UserController::batchUpdateUsers(const QList<User>& users)
 {    
     bool allSuccess = true;
-    for (const QJsonValue& value : users) {
-        if (!updateUser(value.toObject())) {
+    for (const User& user : users) {
+        if (!updateUser(user)) {
             allSuccess = false;
-            qWarning() << "Batch update failed for user:" << value.toObject()["user_id"].toVariant().toLongLong();
+            qWarning() << "Batch update failed for user:" << user.userId;
         }
     }
     
     return allSuccess;
 }
 
-QJsonArray UserController::searchUsersByNickname(const QString& keyword)
+QList<User> UserController::searchUsersByNickname(const QString& keyword)
 {
-    QJsonArray result;    
-    QJsonArray allUsers = getAllUsers();
-    for (const QJsonValue& value : allUsers) {
-        QJsonObject user = value.toObject();
-        QString nickname = user["nickname"].toString();
-        if (nickname.contains(keyword, Qt::CaseInsensitive)) {
+    QList<User> result;    
+    QList<User> allUsers = getAllUsers();
+    for (const User& user : allUsers) {
+        if (user.nickname.contains(keyword, Qt::CaseInsensitive)) {
             result.append(user);
         }
     }
@@ -278,14 +276,12 @@ QJsonArray UserController::searchUsersByNickname(const QString& keyword)
     return result;
 }
 
-QJsonArray UserController::searchUsersByAccount(const QString& keyword)
+QList<User> UserController::searchUsersByAccount(const QString& keyword)
 {
-    QJsonArray result;    
-    QJsonArray allUsers = getAllUsers();
-    for (const QJsonValue& value : allUsers) {
-        QJsonObject user = value.toObject();
-        QString account = user["account"].toString();
-        if (account.contains(keyword, Qt::CaseInsensitive)) {
+    QList<User> result;    
+    QList<User> allUsers = getAllUsers();
+    for (const User& user : allUsers) {
+        if (user.account.contains(keyword, Qt::CaseInsensitive)) {
             result.append(user);
         }
     }
@@ -293,13 +289,12 @@ QJsonArray UserController::searchUsersByAccount(const QString& keyword)
     return result;
 }
 
-QJsonArray UserController::getUsersByGender(int gender)
+QList<User> UserController::getUsersByGender(int gender)
 {
-    QJsonArray result;
-    QJsonArray allUsers = getAllUsers();
-    for (const QJsonValue& value : allUsers) {
-        QJsonObject user = value.toObject();
-        if (user["gender"].toInt() == gender) {
+    QList<User> result;
+    QList<User> allUsers = getAllUsers();
+    for (const User& user : allUsers) {
+        if (user.gender == gender) {
             result.append(user);
         }
     }
@@ -307,14 +302,13 @@ QJsonArray UserController::getUsersByGender(int gender)
     return result;
 }
 
-QJsonArray UserController::getUsersByRegion(const QString& region)
+QList<User> UserController::getUsersByRegion(const QString& region)
 {
-    QJsonArray result;
+    QList<User> result;
     
-    QJsonArray allUsers = getAllUsers();
-    for (const QJsonValue& value : allUsers) {
-        QJsonObject user = value.toObject();
-        if (user["region"].toString() == region) {
+    QList<User> allUsers = getAllUsers();
+    for (const User& user : allUsers) {
+        if (user.region == region) {
             result.append(user);
         }
     }
@@ -324,14 +318,12 @@ QJsonArray UserController::getUsersByRegion(const QString& region)
 
 int UserController::getTotalUserCount()
 {    
-    QJsonArray allUsers = getAllUsers();
-    return allUsers.size();
+    return getAllUsers().size();
 }
 
 int UserController::getGenderStatistics(int gender)
 {    
-    QJsonArray genderUsers = getUsersByGender(gender);
-    return genderUsers.size();
+    return getUsersByGender(gender).size();
 }
 
 QJsonObject UserController::getUserStatistics()
@@ -352,12 +344,10 @@ QJsonObject UserController::getUserStatistics()
     
     // 地区统计
     QJsonObject regionStats;
-    QJsonArray allUsers = getAllUsers();
-    for (const QJsonValue& value : allUsers) {
-        QJsonObject user = value.toObject();
-        QString region = user["region"].toString();
-        if (!region.isEmpty()) {
-            regionStats[region] = regionStats[region].toInt(0) + 1;
+    QList<User> allUsers = getAllUsers();
+    for (const User& user : allUsers) {
+        if (!user.region.isEmpty()) {
+            regionStats[user.region] = regionStats[user.region].toInt(0) + 1;
         }
     }
     stats["region_statistics"] = regionStats;
@@ -365,26 +355,18 @@ QJsonObject UserController::getUserStatistics()
     return stats;
 }
 
-bool UserController::validateUserData(const QJsonObject& user)
+bool UserController::validateUserData(const User& user)
 {
     // 检查必需字段
-    if (!user.contains("user_id") || !user.contains("account")) {
-        return false;
-    }
-    
-    qint64 userId = user["user_id"].toVariant().toLongLong();
-    QString account = user["account"].toString();
-    
-    if (userId <= 0 || account.isEmpty()) {
+    if (user.userId <= 0 || user.account.isEmpty()) {
         return false;
     }
     
     // 检查账号是否重复（排除当前用户）
-    QJsonObject existingUser = getUserByAccount(account);
-    if (!existingUser.isEmpty()) {
-        qint64 existingUserId = existingUser["user_id"].toVariant().toLongLong();
-        if (existingUserId != userId) {
-            qWarning() << "Account already exists:" << account;
+    User existingUser = getUserByAccount(user.account);
+    if (existingUser.isValid()) {
+        if (existingUser.userId != user.userId) {
+            qWarning() << "Account already exists:" << user.account;
             return false;
         }
     }
@@ -394,17 +376,22 @@ bool UserController::validateUserData(const QJsonObject& user)
 
 bool UserController::isAccountExist(const QString& account)
 {    
-    QJsonObject user = getUserByAccount(account);
-    return !user.isEmpty();
+    User user = getUserByAccount(account);
+    return user.isValid();
 }
 
-QJsonObject UserController::mergeJsonObjects(const QJsonObject& target, const QJsonObject& source)
+User UserController::mergeUserData(const User& target, const User& source)
 {
-    QJsonObject result = target;
+    User result = target;
     
-    for (auto it = source.begin(); it != source.end(); ++it) {
-        result[it.key()] = it.value();
-    }
+    // 只更新非空的字段
+    if (!source.account.isEmpty()) result.account = source.account;
+    if (!source.nickname.isEmpty()) result.nickname = source.nickname;
+    if (!source.avatar.isEmpty()) result.avatar = source.avatar;
+    if (!source.avatarLocalPath.isEmpty()) result.avatarLocalPath = source.avatarLocalPath;
+    if (source.gender != 0) result.gender = source.gender;
+    if (!source.region.isEmpty()) result.region = source.region;
+    if (!source.signature.isEmpty()) result.signature = source.signature;
     
     return result;
 }

@@ -15,6 +15,7 @@ class VideoPlayer;
 class ThumbnailDelegate;
 class ThumbnailPreviewModel;
 class CustomListView;
+struct MediaItem;
 
 class MediaDialog : public QDialog
 {
@@ -24,11 +25,12 @@ public:
     explicit MediaDialog(QWidget *parent = nullptr);
 
     ~MediaDialog();
-    void playPixmap(const QPixmap &pixmap);
+    void playSinglePixmap(const QPixmap &pixmap);
     void playMedia(const QString &path, const QString &mediaType);
     void playNextMedia();                            // 播放下一个媒体
     void playPreviousMedia();                        // 播放上一个媒体
-    int currentMediaIndex() const;
+    void setMediaItems(const QList<MediaItem>& items);
+    void selectMediaByMessageId(qint64 messageId);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -93,9 +95,6 @@ private:
     void titleBarSize();
     void mediaSize();
 
-    // 媒体类型判断
-    bool isImageFile(const QString &path);
-    bool isVideoFile(const QString &path);
 };
 
 #endif // MEDIADIALOG_H

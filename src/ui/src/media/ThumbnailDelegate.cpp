@@ -4,13 +4,18 @@
 #include <QMouseEvent>
 #include <QApplication>
 #include <QFontMetrics>
+#include <QAbstractItemView>
 #include <QPainterPath>
+#include "MediaItem.h"
 
 ThumbnailDelegate::ThumbnailDelegate(QObject *parent)
     : QStyledItemDelegate(parent),
     m_cornerRadius(5),
     m_videoIndicatorSize(20)
 {
+    mediaManager = MediaResourceManager::instance();
+    connect(mediaManager, &MediaResourceManager::mediaLoaded,
+            this, &ThumbnailDelegate::onMediaLoaded);
 }
 
 void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const
@@ -32,9 +37,10 @@ void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
     painter->fillRect(rect, backgroundColor);
 
     // 获取数据
-    QPixmap thumbnail = index.data(ThumbnailPreviewModel::ThumbnailPixmapRole).value<QPixmap>();
-    QString mediaType = index.data(ThumbnailPreviewModel::MediaTypeRole).toString();
-    QSize thumbSize = index.data(ThumbnailPreviewModel::ItemSizeRole).toSize();
+    MediaItem item = index.data(ThumbnailPreviewModel::FullMediaRole).value<MediaItem>();
+    MediaType mediaType = (item.mediaType=="video")? MediaType::VideoThumb : MediaType::ImageThumb;
+    QSize thumbSize = QSize(50,50);
+    QPixmap thumbnail = mediaManager->getMedia(item.sourceMediaPath, thumbSize, mediaType, 5, item.thumbnailPath );
 
     QPoint thumbPos(rect.x() + (rect.width() - thumbSize.width()) / 2,
                     rect.y() + 5);
@@ -71,11 +77,6 @@ void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
         painter->drawText(thumbRect, Qt::AlignCenter, "Loading...");
     }
 
-    // 如果是视频，绘制视频标识
-    if (mediaType == "video") {
-        drawVideoIndicator(painter, thumbRect);
-    }
-
     // 绘制文件名（可选）
     QString fileName = index.data(Qt::DisplayRole).toString();
     if (!fileName.isEmpty()) {
@@ -96,35 +97,12 @@ void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
     }
 }
 
-void ThumbnailDelegate::drawVideoIndicator(QPainter *painter, const QRect &rect) const
-{
-    // 在缩略图中心绘制视频播放标识
-    QRect videoRect(rect.center().x() - m_videoIndicatorSize/2,
-                    rect.center().y() - m_videoIndicatorSize/2,
-                    m_videoIndicatorSize, m_videoIndicatorSize);
-
-    painter->save();
-    painter->setBrush(QColor(0, 0, 0, 180)); // 半透明黑色背景
-    painter->setPen(Qt::NoPen);
-    painter->drawEllipse(videoRect);
-
-    // 绘制播放三角形
-    painter->setBrush(Qt::white);
-    QPolygon triangle;
-    triangle << QPoint(videoRect.center().x() - 2, videoRect.center().y() - 5)
-             << QPoint(videoRect.center().x() - 2, videoRect.center().y() + 5)
-             << QPoint(videoRect.center().x() + 6, videoRect.center().y());
-    painter->drawPolygon(triangle);
-
-    painter->restore();
-}
-
 QSize ThumbnailDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
     Q_UNUSED(option)
     Q_UNUSED(index)
 
-    QSize itemSize = index.data(ThumbnailPreviewModel::ItemSizeRole).toSize();
+    QSize itemSize = QSize(50,50);
     return QSize(itemSize.width() + 20, itemSize.height() + 25); // 增加边距和文本空间
 }
 
@@ -132,6 +110,7 @@ bool ThumbnailDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, co
 {
     if (event->type() == QEvent::MouseButtonRelease) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+
         if (mouseEvent->button() == Qt::LeftButton) {
             // 发射点击信号
             QString thumbnailPath = index.data(ThumbnailPreviewModel::ThumbnailPathRole).toString();
@@ -153,3 +132,17 @@ QPainterPath ThumbnailDelegate::getRoundedRectPath(const QRect &rect, int radius
     return path;
 }
 
+
+void ThumbnailDelegate::onMediaLoaded(const QString& resourcePath, const QPixmap& media, MediaType type)
+{
+    if(QAbstractItemView* view = qobject_cast<QAbstractItemView*>(parent())) {
+
+        view->viewport()->update();
+        QAbstractItemModel* model = view->model();
+        if (model) {
+            QModelIndex topLeft = model->index(0, 0);
+            QModelIndex bottomRight = model->index(model->rowCount() - 1, 0);
+            emit model->dataChanged(topLeft, bottomRight);
+        }
+    }
+}

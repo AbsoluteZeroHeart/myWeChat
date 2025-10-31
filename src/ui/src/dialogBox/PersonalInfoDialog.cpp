@@ -8,6 +8,10 @@ PersonalInfoDialog::PersonalInfoDialog(QWidget *parent)
     , ui(new Ui::PersonalInfoDialog)
 {
     ui->setupUi(this);
+    avatarLabel = ui->avatarLabel;
+    account = ui->account;
+    region = ui->region;
+    nickname = ui->nickname;
 }
 
 PersonalInfoDialog::~PersonalInfoDialog()

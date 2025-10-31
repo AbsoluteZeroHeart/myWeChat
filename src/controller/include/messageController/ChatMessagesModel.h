@@ -3,7 +3,7 @@
 
 #include <QAbstractListModel>
 #include <QVector>
-#include "models/ChatMessage.h"
+#include "Message.h"
 
 class ChatMessagesModel : public QAbstractListModel
 {
@@ -35,7 +35,7 @@ public:
         HasThumbnailRole,
         FormattedFileSizeRole,
         FormattedDurationRole,
-        FullMessageRole  // 返回完整的消息对象
+        FullMessageRole
     };
 
     explicit ChatMessagesModel(QObject *parent = nullptr);
@@ -45,38 +45,38 @@ public:
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     bool setData(const QModelIndex &index, const QVariant &value, int role) override;
-    Qt::ItemFlags flags(const QModelIndex &index) const override;
+    // Qt::ItemFlags flags(const QModelIndex &index) const override;
     QHash<int, QByteArray> roleNames() const override;
 
     // 消息管理
-    void addMessage(const ChatMessage &message);
-    void insertMessage(int row, const ChatMessage &message);
+    void addMessage(const Message &message);
+    void insertMessage(int row, const Message &message);
     void removeMessage(int row);
-    void removeMessageById(int messageId);
-    void updateMessage(const ChatMessage &message);
-    ChatMessage getMessage(int row) const;
-    ChatMessage getMessageById(int messageId) const;
+    void removeMessageById(qint64 messageId);
+    void updateMessage(const Message &message);
+    Message getMessage(int row) const;
+    Message getMessageById(qint64 messageId) const;
 
     // 批量操作
-    void addMessages(const QVector<ChatMessage> &messages);
+    void addMessages(const QVector<Message> &messages);
     void clearAll();
 
     // 查询方法
-    int findMessageIndexById(int messageId) const;
-    bool containsMessage(int messageId) const;
+    int findMessageIndexById(qint64 messageId) const;
+    bool containsMessage(qint64 messageId) const;
 
     // 当前用户设置
-    void setCurrentUserId(int userId);
-    int currentUserId() const;
+    void setCurrentUserId(qint64 userId);
+    qint64 currentUserId() const;
 
     // 会话相关
-    void setConversationId(int conversationId);
-    int conversationId() const;
+    void setConversationId(qint64 conversationId);
+    qint64 conversationId() const;
 
 private:
-    QVector<ChatMessage> m_messages;
-    int m_currentUserId = 0;
-    int m_currentConversationId = 0;
+    QVector<Message> m_messages;
+    qint64 m_currentUserId = 0;
+    qint64 m_currentConversationId = 0;
 };
 
 #endif // CHATMESSAGESMODEL_H
