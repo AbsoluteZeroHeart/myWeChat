@@ -282,8 +282,6 @@ int MediaResourceManager::estimateCacheCost(const QPixmap& pixmap) const
     // 转换为KB，并确保最小成本为1
     cost = qMax(1, cost / 1024);
 
-    qDebug()<<cost;
-
     return cost;
 }
 

@@ -17,7 +17,7 @@
 #include <QFileInfo>
 #include "ThumbnailDelegate.h"
 #include "ThumbnailPreviewModel.h"
-#include "CustomListView.h"
+#include "ThumbnailListView.h"
 #include "ThumbnailManager.h"
 
 MediaDialog::MediaDialog(QWidget *parent)
@@ -55,7 +55,7 @@ MediaDialog::MediaDialog(QWidget *parent)
     mediaStackedWidget->addWidget(m_graphicsView);
     mediaStackedWidget->addWidget(m_videoPlayer);
 
-    thumbnailView = new CustomListView(splitter);
+    thumbnailView = new ThumbnailListView(splitter);
     thumbnail_Delegate = new ThumbnailDelegate(thumbnailView);
     thumbnailPreview_Model = new ThumbnailPreviewModel(thumbnailView);
 

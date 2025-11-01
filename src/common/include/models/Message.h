@@ -5,6 +5,7 @@
 #include <QtSql/QSqlQuery>
 #include <QString>
 #include <QDateTime>
+#include "FormatFileSize.h"
 
 // 消息类型枚举
 enum class MessageType {
@@ -95,18 +96,19 @@ struct Message {
     bool hasThumbnail() const { return !thumbnailPath.isEmpty(); }
 
     QString formattedFileSize() const {
-        if (fileSize == 0) return "0 B";
+        // if (fileSize == 0) return "0 B";
         
-        static const QStringList units = {"B", "KB", "MB", "GB"};
-        double size = fileSize;
-        int unitIndex = 0;
+        // static const QStringList units = {"B", "KB", "MB", "GB"};
+        // double size = fileSize;
+        // int unitIndex = 0;
         
-        while (size >= 1024 && unitIndex < units.size() - 1) {
-            size /= 1024;
-            unitIndex++;
-        }
+        // while (size >= 1024 && unitIndex < units.size() - 1) {
+        //     size /= 1024;
+        //     unitIndex++;
+        // }
         
-        return QString("%1 %2").arg(size, 0, 'f', 1).arg(units[unitIndex]);
+        // return QString("%1 %2").arg(size, 0, 'f', 1).arg(units[unitIndex]);
+        return formatFileSize(fileSize);
     }
 
     QString formattedDuration() const {

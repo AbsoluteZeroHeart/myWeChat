@@ -26,7 +26,11 @@
 #include <QStandardPaths>
 #include "MediaResourceManager.h"
 #include <QCheckBox>
-
+#include <QFileDialog>
+#include "MessageTextEdit.h"
+#include <QMessageBox>
+#include "ChatListView.h"
+#include "ChatMessageListView.h"
 
 
 WeChatWidget::WeChatWidget(QWidget *parent)
@@ -67,22 +71,21 @@ WeChatWidget::WeChatWidget(QWidget *parent)
     chatListDelegate = new ChatListDelegate(chatListView);
     chatListView->setItemDelegate(chatListDelegate);
     chatListView->setUniformItemSizes(true);
-    chatListView->setListType(CustomListView::ConversationList);
     chatListView->setModel(appController->conversationController()->chatListModel());
 
-    connect(chatListView, &CustomListView::conversationToggleTop,
+    connect(chatListView, &ChatListView::conversationToggleTop,
             appController->conversationController(), &ConversationController::handleToggleTop);
 
-    connect(chatListView, &CustomListView::conversationMarkAsUnread,
+    connect(chatListView, &ChatListView::conversationMarkAsUnread,
             appController->conversationController(), &ConversationController::handltoggleReadStatus);
 
-    connect(chatListView, &CustomListView::conversationToggleMute,
+    connect(chatListView, &ChatListView::conversationToggleMute,
             appController->conversationController(), &ConversationController::handleToggleMute);
 
-    connect(chatListView, &CustomListView::conversationOpenInWindow,
+    connect(chatListView, &ChatListView::conversationOpenInWindow,
             appController->conversationController(), &ConversationController::handleOpenInWindow);
 
-    connect(chatListView, &CustomListView::conversationDelete,
+    connect(chatListView, &ChatListView::conversationDelete,
             appController->conversationController(), &ConversationController::handleDelete);
 
     // 加载会话列表
@@ -116,44 +119,43 @@ WeChatWidget::WeChatWidget(QWidget *parent)
     // 初始化消息列表
     conversationsView = ui->messageListView;
     chatMessageDelegate = new ChatMessageDelegate(conversationsView);
-    conversationsView->setListType(CustomListView::MessageList);
     conversationsView->setModel(appController->messageController()->messagesModel());
     conversationsView->setItemDelegate(chatMessageDelegate);
     conversationsView->setSelectionMode(QAbstractItemView::NoSelection);
     conversationsView->setResizeMode(QListView::Adjust);
     conversationsView->setUniformItemSizes(false);
 
-    connect(conversationsView, &CustomListView::messageCopy,
+    connect(conversationsView, &ChatMessageListView::messageCopy,
             appController->messageController(), &MessageController::handleCopy);
 
-    connect(conversationsView, &CustomListView::messageZoom,
+    connect(conversationsView, &ChatMessageListView::messageZoom,
             appController->messageController(), &MessageController::handleZoom);
 
-    connect(conversationsView, &CustomListView::messageTranslate,
+    connect(conversationsView, &ChatMessageListView::messageTranslate,
             appController->messageController(), &MessageController::handleTranslate);
 
-    connect(conversationsView, &CustomListView::messageSearch,
+    connect(conversationsView, &ChatMessageListView::messageSearch,
             appController->messageController(), &MessageController::handleSearch);
 
-    connect(conversationsView, &CustomListView::messageForward,
+    connect(conversationsView, &ChatMessageListView::messageForward,
             appController->messageController(), &MessageController::handleForward);
 
-    connect(conversationsView, &CustomListView::messageFavorite,
+    connect(conversationsView, &ChatMessageListView::messageFavorite,
             appController->messageController(), &MessageController::handleFavorite);
 
-    connect(conversationsView, &CustomListView::messageRemind,
+    connect(conversationsView, &ChatMessageListView::messageRemind,
             appController->messageController(), &MessageController::handleRemind);
 
-    connect(conversationsView, &CustomListView::messageMultiSelect,
+    connect(conversationsView, &ChatMessageListView::messageMultiSelect,
             appController->messageController(), &MessageController::handleMultiSelect);
 
-    connect(conversationsView, &CustomListView::messageQuote,
+    connect(conversationsView, &ChatMessageListView::messageQuote,
             appController->messageController(), &MessageController::handleQuote);
 
-    connect(conversationsView, &CustomListView::messageDelete,
+    connect(conversationsView, &ChatMessageListView::messageDelete,
             appController->messageController(), &MessageController::handleDelete);
 
-    connect(conversationsView, &CustomListView::loadmoreMsg,
+    connect(conversationsView, &ChatMessageListView::loadmoreMsg,
             appController->messageController(),&MessageController::loadMoreMessages);
 
     // 处理其他业务如顶置聊天时重新加载，选中加载前的选中项
@@ -177,7 +179,7 @@ WeChatWidget::WeChatWidget(QWidget *parent)
 
 
     connect(chatMessageDelegate, &ChatMessageDelegate::rightClicked, conversationsView,
-            &CustomListView::execMessageListMenu);
+            &ChatMessageListView::execMessageListMenu);
     connect(chatMessageDelegate, &ChatMessageDelegate::mediaClicked, this,
         [&](const qint64 &msgId, const qint64 &conversationId){
         qDebug()<<"点击媒体";
@@ -219,8 +221,6 @@ WeChatWidget::WeChatWidget(QWidget *parent)
     QPixmap avatar = mediaManager->getMedia(currentUser.avatarLocalPath, QSize(500, 500), MediaType::Avatar, 60);
     ui->avatarPushButton->setIcon(avatar);
 
-
-    ui->sendTextEdit->textCursor().insertHtml("<img src='D:/wallpaper/image_2.png' width='100' height='100'/>");
 }
 
 
@@ -463,6 +463,7 @@ void WeChatWidget::updateSendButtonStyle(){
                                   "font: 15px \"黑体\"; "
                                   "border-radius: 3px; "
                                   "}");
+        sendButton->setEnabled(false);
     }else{
         // 文本框有内容：恢复原样式
         sendButton->setProperty("state", "normal");
@@ -478,6 +479,7 @@ void WeChatWidget::updateSendButtonStyle(){
                                       "QPushButton[state=\"normal\"]:pressed { "
                                       "background-color: rgb(6, 178, 83); "
                                       "}");
+        sendButton->setEnabled(true);
     }
     sendButton->style()->unpolish(sendButton);
     sendButton->style()->polish(sendButton);
@@ -729,4 +731,45 @@ Conversation WeChatWidget::getCurrentConversation(const QModelIndex &index)
 
     return conversationInfo;
 }
+
+
+void WeChatWidget::on_selectFileButton_clicked()
+{
+    QStringList filePaths = QFileDialog::getOpenFileNames(
+        this,
+        "选择文件",
+        QDir::homePath(),
+        "所有文件 (*.*);;图片文件 (*.png *.jpg *.jpeg *.bmp *.gif)"
+        );
+
+    if (!filePaths.isEmpty()) {
+        ui->sendTextEdit->insertFiles(filePaths);
+    }
+}
+
+
+void WeChatWidget::on_sendPushButton_clicked()
+{
+    QList<FileItem> fileItems = ui->sendTextEdit->getFileItems();
+    QString text = ui->sendTextEdit->toPlainText().trimmed();
+    text.remove(QChar::ObjectReplacementCharacter);
+
+    QString message = "发送的文件列表:\n";
+    for (const FileItem &item : std::as_const(fileItems)) {
+        message += QString("%1: %2\n").arg(item.isImage ? "图片" : "文件", item.fileName);
+    }
+
+    if (!fileItems.isEmpty()) {
+        QMessageBox::information(this, "发送内容", message);
+    }
+
+    if(!text.isEmpty()){
+        QMessageBox::information(this,"发送文本",text);
+        qDebug()<<"文本"<<text;
+    }
+
+    // 发送完成后可以清空内容
+    ui->sendTextEdit->clearContent();
+}
+
 

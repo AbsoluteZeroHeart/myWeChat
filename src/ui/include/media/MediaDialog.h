@@ -14,7 +14,7 @@ class CustomGraphicsView;
 class VideoPlayer;
 class ThumbnailDelegate;
 class ThumbnailPreviewModel;
-class CustomListView;
+class ThumbnailListView;
 struct MediaItem;
 
 class MediaDialog : public QDialog
@@ -85,7 +85,7 @@ private:
     VideoPlayer * m_videoPlayer;
 
     // 缩略图预览列表模型
-    CustomListView * thumbnailView;
+    ThumbnailListView * thumbnailView;
     ThumbnailDelegate *thumbnail_Delegate;
     ThumbnailPreviewModel *thumbnailPreview_Model;
 

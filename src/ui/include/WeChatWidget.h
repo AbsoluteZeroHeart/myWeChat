@@ -20,13 +20,14 @@ class MoreDialog;
 class FloatingDialog;
 class PersonalInfoDialog;
 class MediaDialog;
-class CustomListView;
+class ChatMessageListView;
 class ChatListDelegate;
 class ChatMessageDelegate;
 class ConversationsModel;
 // class ConversationController;
 // class MessageController;
 class AppController;
+class ChatListView;
 
 class WeChatWidget : public QWidget
 {
@@ -73,6 +74,10 @@ private slots:
 
     void on_pinButton_clicked();
 
+    void on_selectFileButton_clicked();
+
+    void on_sendPushButton_clicked();
+
 private:
     //自定义窗口相关
     bool m_isOnTop; // 记录当前是否置顶
@@ -110,12 +115,12 @@ private:
     //聊天列表
     // ChatListModel *chatListModel;
     ChatListDelegate *chatListDelegate;
-    CustomListView *chatListView;
+    ChatListView *chatListView;
 
     // 聊天消息页
     // ConversationsModel *conversationsModel;
     ChatMessageDelegate *chatMessageDelegate;
-    CustomListView *conversationsView;
+    ChatMessageListView *conversationsView;
 
     Conversation currentConversation;
     User currentUser;

@@ -1,17 +1,10 @@
-#include "customlistview.h"
+#include "Customlistview.h"
 #include <QMouseEvent>
-#include <QContextMenuEvent>
 #include <QResizeEvent>
-#include "Conversation.h"
-#include <QMessageBox>
 #include <QPushButton>
-#include "ClickClosePopup.h"
-#include <QVBoxLayout>
-#include <QLabel>
 
 CustomListView::CustomListView(QWidget *parent)
-    : QListView(parent), isSyncing(false), remainingScroll(0),
-    m_listType(DefaultList), m_currentConversationId(0)
+    : QListView(parent), isSyncing(false), remainingScroll(0)
 {
     // 基本行为
     setSelectionMode(QAbstractItemView::SingleSelection);
@@ -90,7 +83,7 @@ CustomListView::CustomListView(QWidget *parent)
         if(!isSyncing){
             isSyncing = true;
             newVsb->setSliderPosition(position);
-            isSyncing = true;
+            isSyncing = false;
         }
     });
 
@@ -123,17 +116,12 @@ CustomListView::CustomListView(QWidget *parent)
     scrollTimer->setInterval(frameInterval);
     scrollTimer->setSingleShot(false);
     connect(scrollTimer, &QTimer::timeout, this, &CustomListView::onScrollTimerTimeout);
-
-    createConversationContextMenu();
-    createMessageContextMenu();
 }
 
 CustomListView::~CustomListView()
 {
-    delete m_conversationMenu;
-    delete m_messageMenu;
-    delete hideTimer;
-    delete scrollTimer;
+    hideTimer->stop();
+    scrollTimer->stop();
 }
 
 // 更新样式
@@ -257,24 +245,6 @@ void CustomListView::wheelEvent(QWheelEvent *event)
     remainingScroll += -totalScrollPixel;
     if(!scrollTimer->isActive()) scrollTimer->start();
 
-
-    // 当用作消息列表时
-    QPoint angleDelta = event->angleDelta();
-
-    if (!angleDelta.isNull() && angleDelta.y() > 0) {
-
-        if(m_listType == MessageList){
-            // 检查是否滚动到顶部附近
-            QScrollBar *scrollBar = this->verticalScrollBar();
-            int scrollPos = scrollBar->value();
-
-            if (scrollPos < 200) {
-                qDebug() << "滚动到顶部附近，触发加载更多数据";
-                emit loadmoreMsg(5);
-            }
-        }
-    }
-
     event->accept();
 }
 
@@ -356,283 +326,9 @@ void CustomListView::onScrollTimerTimeout()
     if(qAbs(remainingScroll) < scrollStep) remainingScroll = 0;
 }
 
-
 void CustomListView::setMarginRight(int value)
 {
     marginRight = value;
-}
-
-
-void CustomListView::createConversationContextMenu()
-{
-    m_conversationMenu = new QMenu(this);
-
-    // 设置菜单样式
-    m_conversationMenu->setStyleSheet(R"(
-        QMenu {
-            background-color: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            padding: 4px;
-            font-family: "Microsoft YaHei";
-            font-size: 14px;
-        }
-        QMenu::item {
-            height: 32px;
-            padding: 0px 12px;
-            border-radius: 4px;
-            margin: 2px;
-            color: #333333;
-        }
-        QMenu::item:selected:!disabled {
-            background-color: #4CAF50;
-            color: white;
-        }
-        QMenu::item[class="delete"] {
-            color: #ff4444;
-        }
-        QMenu::item[class="delete"]:selected:!disabled {
-            background-color: #ff4444;
-            color: white;
-        }
-        QMenu::separator {
-            height: 1px;
-            background: #e0e0e0;
-            margin: 4px 8px;
-        }
-    )");
-
-    m_toggleTopAction = new QAction("置顶", this);
-    m_markAsUnreadAction = new QAction("标为未读", this);
-    m_toggleMuteAction = new QAction("消息免打扰", this);
-    m_openInWindowAction = new QAction("独立窗口显示", this);
-    m_deleteAction = new QAction("删除", this);
-
-    // 为删除项设置特殊类名
-    m_deleteAction->setProperty("class", "delete");
-
-    m_conversationMenu->addAction(m_toggleTopAction);
-    m_conversationMenu->addAction(m_markAsUnreadAction);
-    m_conversationMenu->addAction(m_toggleMuteAction);
-    m_conversationMenu->addSeparator();
-    m_conversationMenu->addAction(m_openInWindowAction);
-    m_conversationMenu->addSeparator();
-    m_conversationMenu->addAction(m_deleteAction);
-
-    // 连接信号
-    connect(m_toggleTopAction, &QAction::triggered, this, [this]() {
-        emit conversationToggleTop(m_currentConversationId);
-    });
-    connect(m_markAsUnreadAction, &QAction::triggered, this, [this]() {
-        emit conversationMarkAsUnread(m_currentConversationId);
-    });
-    connect(m_toggleMuteAction, &QAction::triggered, this, [this]() {
-        emit conversationToggleMute(m_currentConversationId);
-    });
-    connect(m_openInWindowAction, &QAction::triggered, this, [this]() {
-        emit conversationOpenInWindow(m_currentConversationId);
-    });
-    connect(m_deleteAction, &QAction::triggered, this, [this]() {
-        emit conversationDelete(m_currentConversationId);
-    });
-}
-
-void CustomListView::createMessageContextMenu()
-{
-    m_messageMenu = new QMenu(this);
-
-    // 设置菜单样式
-    m_messageMenu->setStyleSheet(R"(
-        QMenu {
-            background-color: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            padding: 4px;
-            font-family: "Microsoft YaHei";
-            font-size: 14px;
-        }
-        QMenu::item {
-            height: 32px;
-            padding: 0px 12px;
-            border-radius: 4px;
-            margin: 2px;
-            color: #333333;
-        }
-        QMenu::item:selected:!disabled {
-            background-color: #4CAF50;
-            color: white;
-        }
-        QMenu::item[class="delete"] {
-            color: #ff4444;
-        }
-        QMenu::item[class="delete"]:selected:!disabled {
-            background-color: #ff4444;
-            color: white;
-        }
-        QMenu::separator {
-            height: 1px;
-            background: #e0e0e0;
-            margin: 4px 8px;
-        }
-    )");
-
-    m_copyAction = new QAction("复制", this);
-    m_zoomAction = new QAction("放大查看", this);
-    m_translateAction = new QAction("翻译", this);
-    m_searchAction = new QAction("搜索", this);
-    m_forwardAction = new QAction("转发", this);
-    m_favoriteAction = new QAction("收藏", this);
-    m_remindAction = new QAction("提醒", this);
-    m_multiSelectAction = new QAction("多选", this);
-    m_quoteAction = new QAction("引用", this);
-    m_deleteAction = new QAction("删除", this);
-
-    // 为删除项设置特殊类名
-    m_deleteAction->setProperty("class", "delete");
-
-    m_messageMenu->addAction(m_copyAction);
-    m_messageMenu->addAction(m_zoomAction);
-    m_messageMenu->addAction(m_translateAction);
-    m_messageMenu->addAction(m_searchAction);
-    m_messageMenu->addSeparator();
-    m_messageMenu->addAction(m_forwardAction);
-    m_messageMenu->addAction(m_favoriteAction);
-    m_messageMenu->addAction(m_remindAction);
-    m_messageMenu->addSeparator();
-    m_messageMenu->addAction(m_multiSelectAction);
-    m_messageMenu->addAction(m_quoteAction);
-    m_messageMenu->addSeparator();
-    m_messageMenu->addAction(m_deleteAction);
-
-    // 连接信号
-    connect(m_copyAction, &QAction::triggered, this, [this](){
-        emit messageCopy(currentMsg);
-    });
-    connect(m_zoomAction, &QAction::triggered, this, &CustomListView::messageZoom);
-    connect(m_translateAction, &QAction::triggered, this, &CustomListView::messageTranslate);
-    connect(m_searchAction, &QAction::triggered, this, &CustomListView::messageSearch);
-    connect(m_forwardAction, &QAction::triggered, this, &CustomListView::messageForward);
-    connect(m_favoriteAction, &QAction::triggered, this, &CustomListView::messageFavorite);
-    connect(m_remindAction, &QAction::triggered, this, &CustomListView::messageRemind);
-    connect(m_multiSelectAction, &QAction::triggered, this, [this](){
-        // this->setSelectionMode(QAbstractItemView::ExtendedSelection);
-        emit messageMultiSelect();
-    });
-    connect(m_quoteAction, &QAction::triggered, this, &CustomListView::messageQuote);
-    connect(m_deleteAction, &QAction::triggered, this, [this](){
-        showDeleteConfirmationDialog();
-    });
-
-}
-void CustomListView::showDeleteConfirmationDialog()
-{
-    // 创建自定义确认对话框
-    ClickClosePopup* confirmationDialog = new ClickClosePopup(this);
-    QVBoxLayout* mainLayout = new QVBoxLayout(confirmationDialog);
-
-    // 添加提示文本
-    QLabel* messageLabel = new QLabel("删除该消息？");
-    messageLabel->setAlignment(Qt::AlignCenter);
-    messageLabel->setStyleSheet("font-family: 'Microsoft YaHei'; font-size: 14px; color: #333333; "
-                                "padding: 10px; border: none; background-color: transparent;");
-    // 创建按钮布局
-    QHBoxLayout* buttonLayout = new QHBoxLayout();
-    QPushButton* deleteButton = new QPushButton("删除");
-    QPushButton* cancelButton = new QPushButton("取消");
-
-    // 设置按钮样式
-    deleteButton->setStyleSheet(R"(
-        QPushButton {
-            background-color: #ff4444;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            min-width: 80px;
-            min-height: 30px;
-            font-family: "Microsoft YaHei";
-            font-size: 14px;
-        }
-        QPushButton:hover {
-            background-color: #cc3333;
-        }
-        QPushButton:pressed {
-            background-color: #aa2222;
-        }
-    )");
-
-    cancelButton->setStyleSheet(R"(
-        QPushButton {
-            background-color: #f0f0f0;
-            color: #333333;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            min-width: 80px;
-            min-height: 30px;
-            font-family: "Microsoft YaHei";
-            font-size: 14px;
-        }
-        QPushButton:hover {
-            background-color: #e0e0e0;
-        }
-        QPushButton:pressed {
-            background-color: #d0d0d0;
-        }
-    )");
-
-    // 设置按钮布局
-    buttonLayout->addStretch();
-    buttonLayout->addWidget(deleteButton);
-    buttonLayout->addWidget(cancelButton);
-    buttonLayout->addStretch();
-
-    // 设置主布局
-    mainLayout->addWidget(messageLabel);
-    mainLayout->addLayout(buttonLayout);
-    mainLayout->setContentsMargins(20, 15, 20, 15);
-
-    // 连接按钮信号
-    connect(deleteButton, &QPushButton::clicked, confirmationDialog, [this, confirmationDialog]() {
-        confirmationDialog->close();
-        emit messageDelete(currentMsg);
-    });
-
-    connect(cancelButton, &QPushButton::clicked, confirmationDialog, &ClickClosePopup::close);
-
-    // 显示对话框
-    confirmationDialog->show();
-    confirmationDialog->adjustSize();
-}
-
-
-void CustomListView::contextMenuEvent(QContextMenuEvent *event)
-{
-    QModelIndex index = indexAt(event->pos());
-    if (!index.isValid()) {
-        return;
-    }
-
-    if (m_listType == ConversationList) {
-        m_currentConversationId = index.data(ConversationIdRole).toLongLong();
-        if (m_currentConversationId != 0) {
-
-            bool isTop = index.data(IsTopRole).toBool();
-            m_toggleTopAction->setText(isTop ? "取消置顶" : "置顶");
-
-            int unreadCount = index.data(UnreadCountRole).toInt();
-            m_markAsUnreadAction->setText(unreadCount > 0 ? "标记为已读" : "标记为未读");
-
-            m_conversationMenu->exec(event->globalPos());
-        }
-    }
-}
-
-
-void CustomListView::execMessageListMenu(const QPoint& globalPos, const Message &message)
-{
-    if (m_listType == MessageList) {
-        currentMsg = message;
-        m_messageMenu->exec(globalPos);
-    }
 }
 
 

@@ -47,6 +47,7 @@ endif()
 target_include_directories(myWeChat PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/media
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ListView
     ${CMAKE_CURRENT_SOURCE_DIR}/include/dialogBox
     ${CMAKE_CURRENT_SOURCE_DIR}/include/chatList
     ${CMAKE_CURRENT_SOURCE_DIR}/include/chatConversation

@@ -808,7 +808,7 @@ QToolButton:disabled {
             <number>0</number>
            </property>
            <item>
-            <widget class="CustomListView" name="chatListView">
+            <widget class="ChatListView" name="chatListView">
              <property name="styleSheet">
               <string notr="true">QListView{
 	background-color: rgb(255, 255, 255);
@@ -1246,7 +1246,7 @@ QToolButton:disabled {
                 <number>0</number>
                </property>
                <item>
-                <widget class="CustomListView" name="messageListView"/>
+                <widget class="ChatMessageListView" name="messageListView"/>
                </item>
               </layout>
              </widget>
@@ -1602,7 +1602,7 @@ QToolButton:pressed {
                 </widget>
                </item>
                <item>
-                <widget class="QTextEdit" name="sendTextEdit">
+                <widget class="MessageTextEdit" name="sendTextEdit">
                  <property name="font">
                   <font>
                    <family>等线</family>
@@ -1614,14 +1614,19 @@ QToolButton:pressed {
                  </property>
                  <property name="styleSheet">
                   <string notr="true">QTextEdit {
-	font: 12pt &quot;等线&quot;;    
-    /* 基础样式优化 */
-    padding-left: 13px; /* 内边距，让文本与边框有间距 */
+    font: 12pt &quot;等线&quot;;
+    padding-left: 13px;
     padding-right: 13px;
     padding-top: 5px;
-    color: #333333; /* 文本颜色，增强可读性 */
-}
-</string>
+    color: #333333;
+    background-color:rgb(240, 240, 240);
+}</string>
+                 </property>
+                 <property name="verticalScrollBarPolicy">
+                  <enum>Qt::ScrollBarPolicy::ScrollBarAsNeeded</enum>
+                 </property>
+                 <property name="horizontalScrollBarPolicy">
+                  <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
                  </property>
                 </widget>
                </item>
@@ -1656,6 +1661,9 @@ border-bottom-right-radius: 7px;
                   </item>
                   <item>
                    <widget class="QPushButton" name="sendPushButton">
+                    <property name="enabled">
+                     <bool>true</bool>
+                    </property>
                     <property name="minimumSize">
                      <size>
                       <width>95</width>
@@ -1734,9 +1742,19 @@ QPushButton:pressed {
  </widget>
  <customwidgets>
   <customwidget>
-   <class>CustomListView</class>
+   <class>MessageTextEdit</class>
+   <extends>QTextEdit</extends>
+   <header>MessageTextEdit.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ChatListView</class>
    <extends>QListView</extends>
-   <header>CustomListView.h</header>
+   <header>ChatListView.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ChatMessageListView</class>
+   <extends>QListView</extends>
+   <header>ChatMessageListView.h</header>
   </customwidget>
  </customwidgets>
  <resources>
