@@ -1,0 +1,49 @@
+<RCC>
+    <qresource prefix="/a">
+        <file>icons/ic_列表_文件传输助手.svg</file>
+        <file>icons/translate,翻译,翻译页面.svg</file>
+        <file>icons/笔记本.svg</file>
+        <file>icons/表情包.svg</file>
+        <file>icons/窗口关闭.svg</file>
+        <file>icons/窗口置顶.svg</file>
+        <file>icons/窗口最大化.svg</file>
+        <file>icons/窗口最小化.svg</file>
+        <file>icons/发送文件.svg</file>
+        <file>icons/放大.svg</file>
+        <file>icons/更多.svg</file>
+        <file>icons/还原.svg</file>
+        <file>icons/截图.svg</file>
+        <file>icons/聊天.svg</file>
+        <file>icons/聊天记录.svg</file>
+        <file>icons/列表.svg</file>
+        <file>icons/默认头像.svg</file>
+        <file>icons/朋友圈 .svg</file>
+        <file>icons/上一张.svg</file>
+        <file>icons/视频号.svg</file>
+        <file>icons/适应窗口大小.svg</file>
+        <file>icons/收藏.svg</file>
+        <file>icons/缩小.svg</file>
+        <file>icons/提取文字.svg</file>
+        <file>icons/添加.svg</file>
+        <file>icons/添加好友.svg</file>
+        <file>icons/通讯录 .svg</file>
+        <file>icons/图片编辑.svg</file>
+        <file>icons/图片旋转-顺时针.svg</file>
+        <file>icons/图片原始大小.svg</file>
+        <file>icons/下一张 .svg</file>
+        <file>icons/下载.svg</file>
+        <file>icons/小程序 .svg</file>
+        <file>icons/悬浮窗.svg</file>
+        <file>icons/预览图片.png</file>
+        <file>image/login.png</file>
+        <file>image/二维码.png</file>
+        <file>icons/QQ登录.svg</file>
+        <file>icons/微信登录.svg</file>
+        <file>icons/微信号.svg</file>
+        <file>icons/邮箱登录.svg</file>
+        <file>image/avatar.jpg</file>
+        <file>image/.jpg</file>
+        <file>icons/app_icon.png</file>
+        <file>icons/联系人管理.svg</file>
+    </qresource>
+</RCC>

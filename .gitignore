@@ -9,6 +9,5 @@ CMakeFiles/
 CMakeCache.txt
 *.vscde
 CMakeLists.txt.user
-res/
 .vscode/
 .idea/
