@@ -7,7 +7,7 @@ inline QString FormatTime(qint64 timestamp)
 {
     if(timestamp <= 0) return QString();
 
-    QDateTime dt = QDateTime::fromMSecsSinceEpoch(timestamp);
+    QDateTime dt = QDateTime::fromSecsSinceEpoch(timestamp);
     if(!dt.isValid()) return QString();
 
     QDateTime now = QDateTime::currentDateTime();

@@ -8,6 +8,7 @@
 #include <QToolButton>
 #include "Conversation.h"
 #include "User.h"
+#include <QTreeView>
 
 namespace Ui {
 class WeChatWidget;
@@ -18,23 +19,30 @@ class RightPopover;
 class AddDialog ;
 class MoreDialog;
 class FloatingDialog;
-class PersonalInfoDialog;
+class CurrentUserInfoDialog;
 class MediaDialog;
 class ChatMessageListView;
 class ChatListDelegate;
 class ChatMessageDelegate;
-class ConversationsModel;
-// class ConversationController;
-// class MessageController;
+class ChatMessagesModel;
+class ConversationController;
+class MessageController;
 class AppController;
 class ChatListView;
+class ChatListModel;
+class UserController;
+class AudioPlayer;
+class ContactTreeView;
+class ContactItemDelegate;
+class ContactController;
+class UserInfoWidget;
 
 class WeChatWidget : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit WeChatWidget(QWidget *parent = nullptr);
+    explicit WeChatWidget(AppController *Controller, QWidget *parent = nullptr);
     ~WeChatWidget();
 
 
@@ -78,6 +86,8 @@ private slots:
 
     void on_sendPushButton_clicked();
 
+    void on_recordVoiceButton_clicked();
+
 private:
     //自定义窗口相关
     bool m_isOnTop; // 记录当前是否置顶
@@ -104,30 +114,35 @@ private:
     QPointer<AddDialog> addDialog;
     QPointer<MoreDialog> moreDialog;
     QPointer<FloatingDialog> floatingDialog;
-    QPointer<PersonalInfoDialog> personalInfoDialog;
+    QPointer<CurrentUserInfoDialog> currentUserInfoDialog;
     QPointer<MediaDialog> mediaDialog;
 
-    // ConversationController *conversationController;
-    // MessageController *messageController;
+    UserInfoWidget *userInfoWidget;
 
-    AppController *appController;
+    AudioPlayer *audioPlayer;  // 音频播放
 
-    //聊天列表
-    // ChatListModel *chatListModel;
+    UserController *userController;
+
+    //聊天会话列表
+    ConversationController *conversationController;
     ChatListDelegate *chatListDelegate;
     ChatListView *chatListView;
 
     // 聊天消息页
-    // ConversationsModel *conversationsModel;
+    MessageController *messageController;
     ChatMessageDelegate *chatMessageDelegate;
-    ChatMessageListView *conversationsView;
+    ChatMessageListView *chatMessageListView;
 
     Conversation currentConversation;
     User currentUser;
 
+    // 通讯录TreeView
+    ContactController *contactController;
+    ContactTreeView *contactTreeView;
+    ContactItemDelegate *contactItemDelegate;
+
     void updateSendButtonStyle();//更新发送按钮样式
 
-    Conversation getCurrentConversation(const QModelIndex &index);
 
 };
 

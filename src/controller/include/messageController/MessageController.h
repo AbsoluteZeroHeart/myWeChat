@@ -2,119 +2,128 @@
 #define MESSAGECONTROLLER_H
 
 #include <QObject>
+#include <QAtomicInteger>  // 线程安全计数器
+#include <QHash>           // 哈希表存储键值对
 #include <QTimer>
-#include <QMap>
-#include "Message.h"
+#include <QMap>            // 有序映射表
+#include "DatabaseManager.h"
 #include "ChatMessagesModel.h"
+#include "Message.h"
 #include "MediaItem.h"
+#include "User.h"
 
-class DataAccessContext;
+class ImageProcessor;
+class FileCopyProcessor;
+class VideoProcessor;
 
 /**
- * @brief 消息控制器类，负责处理所有消息相关的业务逻辑
- *
- * 包括消息的发送、接收、删除、转发、复制等操作，以及消息数据的加载和管理
+ * @class MessageController
+ * @brief 消息控制器，管理聊天消息核心操作（发送、接收、加载等）
  */
 class MessageController : public QObject
 {
     Q_OBJECT
 
+
 public:
-    explicit MessageController(QObject *parent = nullptr);
-    ~MessageController();
+    explicit MessageController(DatabaseManager* dbManager, QObject* parent = nullptr); // 构造函数
+    ~MessageController(); // 析构函数
 
-    // 属性访问方法
-    ChatMessagesModel* messagesModel() const;
-    qint64 currentConversationId() const;
-    qint64 currentUserId() const;
-    bool loading() const;
-    bool hasMoreMessages() const;
+    // 获取属性值
+    ChatMessagesModel* messagesModel() const { return m_messagesModel; }
+    qint64 currentConversationId() const { return m_currentConversationId; }
 
-    // 获取某会话的所有媒体
-    QList<MediaItem> getMediaItems(qint64 conversationId);
+    // 异步操作：会话管理、消息发送/处理等
+    void setCurrentConversationId(qint64 conversationId); // 设置当前会话
+    void setCurrentUser(int reqId, User user);            // 设置当前用户
 
-public slots:
-    // 会话管理
-    void setCurrentConversationId(qint64 conversationId);
-    void setCurrentUserId(qint64 userId);
+    void sendTextMessage(const QString& content);         // 发送文本消息
+    void sendImageMessage(const qint64 conversationId,
+                          const QString &originalImagePath,
+                          const QString &thumbnailPath,
+                          bool success);                 // 发送图片消息
 
-    // 消息发送功能
-    void sendTextMessage(const QString& content);
-    void sendImageMessage(const QString& filePath, const QString& description = "");
-    void sendVideoMessage(const QString& filePath, int duration, const QString& description = "");
-    void sendFileMessage(const QString& filePath, const QString& fileName = "");
-    void sendVoiceMessage(const QString& filePath, int duration);
+    void sendVideoMessage(qint64 conversationId,
+                          const QString &originalPath,
+                          const QString &thumbnailPath,
+                          bool success);                 // 发送视频消息
 
-    // 消息操作功能
-    void recallMessage(qint64 messageId);
-    void saveMessageMedia(qint64 messageId, const QString& savePath);
-    void handleCopy(const Message &message);
-    void handleZoom();
-    void handleTranslate();
-    void handleSearch();
-    void handleForward();
-    void handleFavorite();
-    void handleRemind();
-    void handleMultiSelect();
-    void handleQuote();
-    void handleDelete(const Message & message);
+    void sendFileMessage(const qint64 conversationId,
+                         bool success,
+                         const QString &sourcePath,
+                         const QString &targetPath,
+                         const QString &errorMessage);    // 发送文件消息
 
-    // 消息加载功能
-    void loadRecentMessages(int limit = 10);
-    void loadMoreMessages(int limit = 10);
-    void refreshMessages();
+    void sendVoiceMessage(const QString& filePath, int duration);           // 发送语音消息
 
-    // 消息状态管理
-    void toggleMessageFavorite(qint64 messageId);
-    void downloadMedia(qint64 messageId);
-    void cancelDownload(qint64 messageId);
+    void preprocessImageBeforeSend(QStringList pathList);
+    void preprocessFileBeforeSend(QStringList fileList);
+    void preprocessVideoBeforeSend(QStringList fileList);
+
+    void loadRecentMessages(int limit = 30);      // 加载最近消息
+    void loadMoreMessages(int limit = 20);        // 加载更多历史消息
+    void getMediaItems(qint64 conversationId);    // 获取会话中所有媒体项
+
+    // UI操作
+    Q_INVOKABLE void handleCopy(const Message &message); // 处理消息复制
+    Q_INVOKABLE void handleZoom();        // 处理图片/视频缩放
+    Q_INVOKABLE void handleTranslate();   // 处理消息翻译
+    Q_INVOKABLE void handleSearch();      // 处理消息搜索
+    Q_INVOKABLE void handleForward();     // 处理消息转发
+    Q_INVOKABLE void handleFavorite();    // 处理消息收藏
+    Q_INVOKABLE void handleRemind();      // 处理消息提醒
+    Q_INVOKABLE void handleMultiSelect(); // 处理消息多选
+    Q_INVOKABLE void handleQuote();       // 处理消息引用
+    Q_INVOKABLE void handleDelete(const Message &message); // 处理消息删除
 
 signals:
-    // 状态变化信号
-    void currentUserIdChanged();
-    void hasMoreMessagesChanged();
-    void messagesLoaded(bool hasMore);
+    // 操作结果信号
+    void messageSaved();
+    void messageDeleted(int reqId, bool success, const QString& error = QString()); // 消息删除结果
+    void messagesLoaded(int reqId, const QList<Message>& messages, bool hasMore);   // 消息列表加载结果
+    void mediaItemsLoaded(int reqId, const QList<MediaItem>& items);                // 媒体项加载结果
 
+
+
+private slots:
+    // 数据库操作结果处理
+    void onMessageSaved(int reqId, bool ok, QString reason);
+    void onMessageDeleted(int reqId, bool success, const QString& error); // 消息删除结果
+    void onMessagesLoaded(int reqId, const QList<Message>& messages);     // 消息列表加载结果
+    void onMediaItemsLoaded(int reqId, const QList<MediaItem>& items);    // 媒体项加载结果
+    void onDbError(int reqId, const QString& error);                      // 数据库错误处理
+
+private:
+    int generateReqId();   // 生成唯一请求ID
+    void connectSignals(); // 连接信号槽
+    Message createMessage(qint64 conversationId,
+                          MessageType type,
+                          const QString& content = QString(),
+                          const QString& filePath = QString(),
+                          qint64 fileSize = 0,
+                          int duration = 0,
+                          const QString& thumbnailPath = QString()); // 创建消息对象
 
 
 private:
-    // 核心组件
-    ChatMessagesModel* m_messagesModel;      ///< 消息数据模型
-    DataAccessContext* m_dataAccessContext;  ///< 数据访问上下文
+    DatabaseManager* dbManager; // 数据库管理器
+    MessageTable* messageTable; // 消息表操作接口
+    ContactTable* contactTable; // 联系人表操作接口
+    UserTable* userTable;       // 用户表操作接口
+    ChatMessagesModel* m_messagesModel; // 消息模型（UI展示用）
+    QAtomicInteger<int> reqIdCounter;   // 请求ID计数器（线程安全）
 
-    // 会话状态
-    qint64 m_currentConversationId;          ///< 当前会话ID
-    qint64 m_currentUserId;                  ///< 当前用户ID
-    bool m_loading;                          ///< 是否正在加载消息
-    bool m_hasMoreMessages;                  ///< 是否还有更多消息可加载
-    int m_currentOffset;                     ///< 当前消息加载偏移量
+    qint64 m_currentConversationId; // 当前会话ID
+    User currentUser;  // 当前登录用户
+    bool loading;      // 加载状态标记
+    int currentOffset; // 消息加载偏移量（分页用）
+    bool isSearchMode; // 是否搜索模式
 
-    // 临时消息管理
-    qint64 m_temporaryIdCounter;             ///< 临时ID计数器
-    bool m_isSearchMode;                     ///< 是否为搜索模式
-    QMap<qint64, Message> m_temporaryMessages; ///< 临时消息存储
+    QHash<int, QString> pendingOperations;
 
-    // 下载管理
-    QMap<qint64, QTimer*> m_downloadTimers;  ///< 下载计时器
-    QMap<qint64, int> m_downloadProgress;    ///< 下载进度
-
-private:
-    // 数据库操作
-    bool saveMessageToDatabase(Message& message);
-    bool updateMessageInDatabase(const Message& message);
-    bool deleteMessageFromDatabase(qint64 messageId);
-    QVector<Message> loadMessagesFromDatabase(int limit, int offset);
-    int getMessageCountFromDatabase();
-
-    // 消息创建和工具方法
-    Message createMessage(MessageType type, const QString& content = "",
-                          const QString& filePath = "", qint64 fileSize = 0,
-                          int duration = 0, const QString& thumbnailPath = "");
-    void asyncDownloadMedia(const Message& message);
-    qint64 generateTemporaryId();
-    void handleSendSuccess(qint64 temporaryId, qint64 actualId);
-    void handleSendFailure(qint64 temporaryId, const QString& error);
-    qint64 calculateFileSize(const QString& filePath);
+    ImageProcessor *imageProcessor;
+    FileCopyProcessor *fileCopyProcessor;
+    VideoProcessor *videoProcessor;
 };
 
 #endif // MESSAGECONTROLLER_H

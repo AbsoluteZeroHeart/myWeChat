@@ -22,21 +22,6 @@ MessageTextEdit::~MessageTextEdit()
 {
 }
 
-void MessageTextEdit::insertImage(const QString &imagePath)
-{
-    QImage image(imagePath);
-    if (!image.isNull()) {
-        FileItem item;
-        item.filePath = imagePath;
-        item.fileName = QFileInfo(imagePath).fileName();
-        item.isImage = true;
-        item.thumbnail = createThumbnail(image);
-
-        m_fileItems.append(item);
-        insertFileToDocument(item);
-    }
-}
-
 void MessageTextEdit::insertFile(const QString &filePath)
 {
     QFileInfo fileInfo(filePath);
@@ -48,14 +33,15 @@ void MessageTextEdit::insertFile(const QString &filePath)
     QMimeDatabase mimeDb;
     QString mimeType = mimeDb.mimeTypeForFile(filePath).name();
     item.isImage = mimeType.startsWith("image/");
+    item.isVideo = mimeType.startsWith("video/");
 
     if (item.isImage) {
-        QImage image(filePath);
+        QImage image(item.filePath);
         if (!image.isNull()) {
             item.thumbnail = createThumbnail(image);
         }
     } else {
-        item.thumbnail = createFileIcon(item.fileName, item.filePath);
+        item.thumbnail = createFileIcon(item.filePath);
     }
 
     m_fileItems.append(item);
@@ -80,42 +66,10 @@ void MessageTextEdit::clearContent()
     m_fileItems.clear();
 }
 
-void MessageTextEdit::keyPressEvent(QKeyEvent *event)
-{
-    // 处理 Ctrl+V 粘贴
-    if (event->key() == Qt::Key_V && event->modifiers() == Qt::ControlModifier) {
-        handleClipboardImage();
-        return;
-    }
-
-    QTextEdit::keyPressEvent(event);
-}
-
-bool MessageTextEdit::canInsertFromMimeData(const QMimeData *source) const
-{
-    return source->hasImage() || source->hasUrls() || QTextEdit::canInsertFromMimeData(source);
-}
-
 void MessageTextEdit::insertFromMimeData(const QMimeData *source)
 {
-    if (source->hasImage()) {
-        // 处理图片粘贴
-        QImage image = qvariant_cast<QImage>(source->imageData());
-        if (!image.isNull()) {
-            static int pasteCount = 0;
-            QString tempName = QString("clipboard_image_%1").arg(++pasteCount);
+    if (source->hasUrls()) {
 
-            FileItem item;
-            item.filePath = tempName;
-            item.fileName = tempName + ".png";
-            item.isImage = true;
-            item.thumbnail = createThumbnail(image);
-
-            m_fileItems.append(item);
-            insertFileToDocument(item);
-        }
-    } else if (source->hasUrls()) {
-        // 处理文件拖放
         QList<QUrl> urls = source->urls();
         QStringList filePaths;
         for (const QUrl &url : std::as_const(urls)) {
@@ -129,12 +83,29 @@ void MessageTextEdit::insertFromMimeData(const QMimeData *source)
     }
 }
 
+void MessageTextEdit::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+        // 检查是否按下了Shift或Ctrl键（Shift+Enter 或 Ctrl+Enter 换行）
+        if ((event->modifiers() & Qt::ShiftModifier) ||
+            (event->modifiers() & Qt::ControlModifier)) {
+            QTextEdit::keyPressEvent(event);
+        } else {
+            emit returnPressed();
+            event->accept();
+        }
+    } else {
+        // 其他按键: 执行默认处理
+        QTextEdit::keyPressEvent(event);
+    }
+}
+
 QImage MessageTextEdit::createThumbnail(const QImage &image)
 {
     return image.scaled(150,250, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 }
 
-QImage MessageTextEdit::createFileIcon(const QString &fileName, const QString &filePath)
+QImage MessageTextEdit::createFileIcon(const QString &filePath)
 {
     QImage icon(240,95, QImage::Format_ARGB32);
     icon.fill(Qt::transparent);
@@ -166,7 +137,8 @@ QImage MessageTextEdit::createFileIcon(const QString &fileName, const QString &f
                    iconWidth, iconHeight);
 
     // 绘制文件类型图标
-    QString fileExtension = getFileExtension(fileName).toLower();
+    QFileInfo fileInfo(filePath);
+    QString fileExtension = fileInfo.suffix ();
     paintFileIcon(&painter, iconRect, fileExtension);
 
     // 文本区域（左侧）
@@ -183,10 +155,10 @@ QImage MessageTextEdit::createFileIcon(const QString &fileName, const QString &f
     painter.setFont(fileNameFont);
 
     // 文件名省略处理
-    QString displayName = fileName;
+    QString displayName = fileInfo.fileName();
     QFontMetrics nameMetrics(fileNameFont);
-    if (nameMetrics.horizontalAdvance(fileName) > textRect.width()) {
-        displayName = nameMetrics.elidedText(fileName, Qt::ElideRight, textRect.width());
+    if (nameMetrics.horizontalAdvance(fileInfo.fileName()) > textRect.width()) {
+        displayName = nameMetrics.elidedText(fileInfo.fileName(), Qt::ElideRight, textRect.width());
     }
     painter.drawText(textRect, Qt::AlignLeft | Qt::AlignTop, displayName);
 
@@ -197,13 +169,10 @@ QImage MessageTextEdit::createFileIcon(const QString &fileName, const QString &f
     painter.setPen(QColor(150, 150, 150));
 
     QString fileSize;
-    QFileInfo fileInfo(filePath);
     if (fileInfo.exists()) {
         qint64 sizeInBytes = fileInfo.size();
         fileSize = formatFileSize(sizeInBytes);
-        qDebug()<<filePath<<"文件大小："<<fileSize;
     }
-    qDebug()<<filePath<<"文件大小："<<fileSize;
 
     QRect sizeRect = textRect.adjusted(0, nameMetrics.height() + bubblePadding/2, 0, 0);
     painter.drawText(sizeRect, Qt::AlignLeft | Qt::AlignTop, fileSize);
@@ -322,15 +291,6 @@ void MessageTextEdit::paintFileIcon(QPainter *painter, const QRect &fileRect, co
     painter->restore();
 }
 
-QString MessageTextEdit::getFileExtension(const QString &fileName) const
-{
-    int dotIndex = fileName.lastIndexOf('.');
-    if (dotIndex != -1 && dotIndex < fileName.length() - 1) {
-        return fileName.mid(dotIndex + 1);
-    }
-    return "";
-}
-
 void MessageTextEdit::insertFileToDocument(const FileItem &fileItem)
 {
     QTextCursor cursor = textCursor();
@@ -368,17 +328,6 @@ void MessageTextEdit::insertFileToDocument(const FileItem &fileItem)
     }
 
     setTextCursor(cursor);
-}
-
-void MessageTextEdit::handleClipboardImage()
-{
-    const QMimeData *mimeData = QApplication::clipboard()->mimeData();
-    if (mimeData && mimeData->hasImage()) {
-        insertFromMimeData(mimeData);
-    } else {
-        // 如果没有图片，执行默认粘贴
-        paste();
-    }
 }
 
 

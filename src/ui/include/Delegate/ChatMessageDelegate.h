@@ -66,7 +66,6 @@ private:
 
     // 工具方法
     QSize calculateTextSize(const QString &text, const QFont &font, int maxWidth) const;
-    QString getFileExtension(const QString &fileName) const;
     QRect getClickableRect(const QStyleOptionViewItem &option, const Message &message,
                            const bool &isOwn) const;
     bool handleLeftClick(QMouseEvent *mouseEvent, const QStyleOptionViewItem &option,

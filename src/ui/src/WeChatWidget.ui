@@ -602,7 +602,7 @@ QToolButton:disabled {
       <property name="minimumSize">
        <size>
         <width>209</width>
-        <height>0</height>
+        <height>600</height>
        </size>
       </property>
       <property name="styleSheet">
@@ -788,7 +788,7 @@ QToolButton:disabled {
 </string>
          </property>
          <property name="currentIndex">
-          <number>0</number>
+          <number>1</number>
          </property>
          <widget class="QWidget" name="leftStackedWidgetpage0">
           <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -821,13 +821,156 @@ QToolButton:disabled {
            </item>
           </layout>
          </widget>
-         <widget class="QWidget" name="leftStackedWidgetpage1"/>
+         <widget class="QWidget" name="leftStackedWidgetpage1">
+          <layout class="QVBoxLayout" name="verticalLayout_10">
+           <property name="spacing">
+            <number>0</number>
+           </property>
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QWidget" name="widget_6" native="true">
+             <property name="styleSheet">
+              <string notr="true">background-color: rgb(247, 247, 247);</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_9">
+              <property name="leftMargin">
+               <number>15</number>
+              </property>
+              <property name="topMargin">
+               <number>15</number>
+              </property>
+              <property name="rightMargin">
+               <number>15</number>
+              </property>
+              <property name="bottomMargin">
+               <number>15</number>
+              </property>
+              <item>
+               <widget class="QPushButton" name="pushButton">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton {
+    color: black;           
+    background-color: rgb(255, 255, 255);
+    border-radius: 4px;   
+ 
+	font: 11pt &quot;微软雅黑&quot;;
+}
+
+/* 按钮鼠标悬停状态：背景色设为灰色 */
+QPushButton:hover {
+    background-color: rgb(235,235,235);
+}
+
+/* 按钮点击（按下）状态：背景色设为更深的灰色 */
+QPushButton:pressed {
+    background-color: rgb(227,227,227);
+}</string>
+                </property>
+                <property name="text">
+                 <string>联系人管理</string>
+                </property>
+                <property name="icon">
+                 <iconset resource="../res/icon.qrc">
+                  <normaloff>:/a/icons/联系人管理.svg</normaloff>:/a/icons/联系人管理.svg</iconset>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>27</width>
+                  <height>27</height>
+                 </size>
+                </property>
+                <property name="autoDefault">
+                 <bool>false</bool>
+                </property>
+                <property name="default">
+                 <bool>false</bool>
+                </property>
+                <property name="flat">
+                 <bool>false</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="ContactTreeView" name="contactTreeView">
+             <property name="styleSheet">
+              <string notr="true">QTreeView{
+	background-color: rgb(247, 247, 247);
+}
+
+</string>
+             </property>
+             <property name="verticalScrollBarPolicy">
+              <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+             </property>
+             <property name="horizontalScrollBarPolicy">
+              <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+             </property>
+             <property name="autoScroll">
+              <bool>true</bool>
+             </property>
+             <property name="autoScrollMargin">
+              <number>0</number>
+             </property>
+             <property name="verticalScrollMode">
+              <enum>QAbstractItemView::ScrollMode::ScrollPerPixel</enum>
+             </property>
+             <property name="autoExpandDelay">
+              <number>0</number>
+             </property>
+             <property name="indentation">
+              <number>15</number>
+             </property>
+             <property name="uniformRowHeights">
+              <bool>false</bool>
+             </property>
+             <property name="itemsExpandable">
+              <bool>true</bool>
+             </property>
+             <property name="allColumnsShowFocus">
+              <bool>true</bool>
+             </property>
+             <property name="headerHidden">
+              <bool>true</bool>
+             </property>
+             <attribute name="headerVisible">
+              <bool>false</bool>
+             </attribute>
+            </widget>
+           </item>
+          </layout>
+         </widget>
          <widget class="QWidget" name="leftStackedWidgetpage2"/>
         </widget>
        </item>
       </layout>
      </widget>
      <widget class="QWidget" name="widget" native="true">
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>600</height>
+       </size>
+      </property>
       <property name="styleSheet">
        <string notr="true">QWidget{
 border: 0px ;
@@ -1039,7 +1182,7 @@ QToolButton:pressed {
           </size>
          </property>
          <property name="styleSheet">
-          <string notr="true">QFrame {
+          <string notr="true">#rightStackedWidget {
     border-left: 1px solid #CCCCCC;
     border-radius: 0px;
     background-color: rgb(240, 240, 240);
@@ -1055,7 +1198,7 @@ QToolButton:pressed {
           <enum>QFrame::Shadow::Raised</enum>
          </property>
          <property name="currentIndex">
-          <number>0</number>
+          <number>1</number>
          </property>
          <widget class="QWidget" name="rightStackedWidgetPage0">
           <property name="styleSheet">
@@ -1284,6 +1427,7 @@ border-bottom-right-radius: 7px;
                 <widget class="QWidget" name="widget_4" native="true">
                  <property name="styleSheet">
                   <string notr="true">border: 0px solid #CCCCCC;
+background-color: rgb(240, 240, 240);
 </string>
                  </property>
                  <layout class="QHBoxLayout" name="horizontalLayout_4">
@@ -1513,6 +1657,22 @@ QToolButton:pressed {
                    </spacer>
                   </item>
                   <item>
+                   <widget class="QToolButton" name="recordVoiceButton">
+                    <property name="minimumSize">
+                     <size>
+                      <width>30</width>
+                      <height>30</height>
+                     </size>
+                    </property>
+                    <property name="text">
+                     <string>...</string>
+                    </property>
+                    <property name="icon">
+                     <iconset theme="QIcon::ThemeIcon::MediaRecord"/>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
                    <widget class="QToolButton" name="toolButton_13">
                     <property name="minimumSize">
                      <size>
@@ -1636,6 +1796,8 @@ QToolButton:pressed {
                   <string notr="true">QWidget{
 border: 0px ;
 border-bottom-right-radius: 7px;
+background-color: rgb(240, 240, 240);
+
 }
 </string>
                  </property>
@@ -1703,19 +1865,45 @@ QPushButton:pressed {
           </layout>
          </widget>
          <widget class="QWidget" name="rightStackedWidgetpage1">
-          <widget class="QRadioButton" name="radioButton">
-           <property name="geometry">
-            <rect>
-             <x>80</x>
-             <y>280</y>
-             <width>118</width>
-             <height>23</height>
-            </rect>
-           </property>
-           <property name="text">
-            <string>RadioButton</string>
-           </property>
-          </widget>
+          <property name="styleSheet">
+           <string notr="true">background-color: rgb(240, 240, 240);</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_8">
+           <item alignment="Qt::AlignmentFlag::AlignHCenter">
+            <widget class="UserInfoWidget" name="userInfoWidget" native="true">
+             <property name="minimumSize">
+              <size>
+               <width>350</width>
+               <height>550</height>
+              </size>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>350</width>
+               <height>550</height>
+              </size>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">background-color: rgb(240, 240, 240);
+
+</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="verticalSpacer_2">
+             <property name="orientation">
+              <enum>Qt::Orientation::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>2</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
          </widget>
          <widget class="QWidget" name="rightStackedWidgetPage2"/>
         </widget>
@@ -1755,6 +1943,17 @@ QPushButton:pressed {
    <class>ChatMessageListView</class>
    <extends>QListView</extends>
    <header>ChatMessageListView.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ContactTreeView</class>
+   <extends>QTreeView</extends>
+   <header>ContactTreeView.h</header>
+  </customwidget>
+  <customwidget>
+   <class>UserInfoWidget</class>
+   <extends>QWidget</extends>
+   <header>UserInfoWidget.h</header>
+   <container>1</container>
   </customwidget>
  </customwidgets>
  <resources>

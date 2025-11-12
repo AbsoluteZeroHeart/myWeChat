@@ -1,163 +1,286 @@
 #include "ContactController.h"
-#include "DataAccessContext.h"
 #include <QDebug>
+#include "ContactTable.h"
 
-ContactController::ContactController(QObject *parent)
+ContactController::ContactController(DatabaseManager* dbManager, QObject* parent)
     : QObject(parent)
-    , m_dataAccessContext(new DataAccessContext(this))
+    , m_dbManager(dbManager)
+    , m_contactTable(nullptr)
+    , m_contactTreeModel(new ContactTreeModel(this))
 {
+    if (m_dbManager) {
+        m_contactTable = m_dbManager->contactTable();
+        connectSignals();
+        connectAsyncSignals(); // 连接异步信号
+    } else {
+        qWarning() << "DatabaseManager is null in ContactController constructor";
+    }
 }
 
 ContactController::~ContactController()
 {
+    disconnectSignals();
 }
 
-bool ContactController::addContact(const Contact& contact)
+void ContactController::connectSignals()
+{
+    if (!m_contactTable) return;
+
+    // 连接数据库操作结果信号
+    connect(m_contactTable, &ContactTable::contactSaved,
+            this, &ContactController::onContactSaved);
+    connect(m_contactTable, &ContactTable::contactUpdated,
+            this, &ContactController::onContactUpdated);
+    connect(m_contactTable, &ContactTable::contactDeleted,
+            this, &ContactController::onContactDeleted);
+    connect(m_contactTable, &ContactTable::contactLoaded,
+            this, &ContactController::onContactLoaded);
+    connect(m_contactTable, &ContactTable::allContactsLoaded,
+            this, &ContactController::onAllContactsLoaded);
+    connect(m_contactTable, &ContactTable::searchContactsResult,
+            this, &ContactController::onSearchContactsResult);
+    connect(m_contactTable, &ContactTable::contactStarredSet,
+            this, &ContactController::onContactStarredSet);
+    connect(m_contactTable, &ContactTable::contactBlockedSet,
+            this, &ContactController::onContactBlockedSet);
+    connect(m_contactTable, &ContactTable::starredContactsLoaded,
+            this, &ContactController::onStarredContactsLoaded);
+}
+
+void ContactController::connectAsyncSignals()
+{
+    if (!m_contactTable) return;
+
+    // 直接连接到 ContactTable 的方法，使用异步连接
+    connect(this, &ContactController::addContactRequested,
+            m_contactTable, &ContactTable::saveContact, Qt::QueuedConnection);
+    connect(this, &ContactController::updateContactRequested,
+            m_contactTable, &ContactTable::updateContact, Qt::QueuedConnection);
+    connect(this, &ContactController::deleteContactRequested,
+            m_contactTable, &ContactTable::deleteContact, Qt::QueuedConnection);
+    connect(this, &ContactController::getContactRequested,
+            m_contactTable, &ContactTable::getContact, Qt::QueuedConnection);
+    connect(this, &ContactController::getAllContactsRequested,
+            m_contactTable, &ContactTable::getAllContacts, Qt::QueuedConnection);
+    connect(this, &ContactController::searchContactsRequested,
+            m_contactTable, &ContactTable::searchContacts, Qt::QueuedConnection);
+    connect(this, &ContactController::setContactStarredRequested,
+            m_contactTable, &ContactTable::setContactStarred, Qt::QueuedConnection);
+    connect(this, &ContactController::setContactBlockedRequested,
+            m_contactTable, &ContactTable::setContactBlocked, Qt::QueuedConnection);
+    connect(this, &ContactController::getStarredContactsRequested,
+            m_contactTable, &ContactTable::getStarredContacts, Qt::QueuedConnection);
+}
+
+void ContactController::disconnectSignals()
+{
+    if (!m_contactTable) return;
+
+    disconnect(m_contactTable, &ContactTable::contactSaved,
+               this, &ContactController::onContactSaved);
+    disconnect(m_contactTable, &ContactTable::contactUpdated,
+               this, &ContactController::onContactUpdated);
+    disconnect(m_contactTable, &ContactTable::contactDeleted,
+               this, &ContactController::onContactDeleted);
+    disconnect(m_contactTable, &ContactTable::contactLoaded,
+               this, &ContactController::onContactLoaded);
+    disconnect(m_contactTable, &ContactTable::allContactsLoaded,
+               this, &ContactController::onAllContactsLoaded);
+    disconnect(m_contactTable, &ContactTable::searchContactsResult,
+               this, &ContactController::onSearchContactsResult);
+    disconnect(m_contactTable, &ContactTable::contactStarredSet,
+               this, &ContactController::onContactStarredSet);
+    disconnect(m_contactTable, &ContactTable::contactBlockedSet,
+               this, &ContactController::onContactBlockedSet);
+    disconnect(m_contactTable, &ContactTable::starredContactsLoaded,
+               this, &ContactController::onStarredContactsLoaded);
+
+    // 断开异步信号连接
+    disconnect(this, &ContactController::addContactRequested,
+               m_contactTable, &ContactTable::saveContact);
+    disconnect(this, &ContactController::updateContactRequested,
+               m_contactTable, &ContactTable::updateContact);
+    disconnect(this, &ContactController::deleteContactRequested,
+               m_contactTable, &ContactTable::deleteContact);
+    disconnect(this, &ContactController::getContactRequested,
+               m_contactTable, &ContactTable::getContact);
+    disconnect(this, &ContactController::getAllContactsRequested,
+               m_contactTable, &ContactTable::getAllContacts);
+    disconnect(this, &ContactController::searchContactsRequested,
+               m_contactTable, &ContactTable::searchContacts);
+    disconnect(this, &ContactController::setContactStarredRequested,
+               m_contactTable, &ContactTable::setContactStarred);
+    disconnect(this, &ContactController::setContactBlockedRequested,
+               m_contactTable, &ContactTable::setContactBlocked);
+    disconnect(this, &ContactController::getStarredContactsRequested,
+               m_contactTable, &ContactTable::getStarredContacts);
+}
+
+// 异步操作方法 - 只进行参数验证和发射信号
+void ContactController::addContact(int reqId, const Contact& contact)
 {
     if (!contact.isValid()) {
-        qWarning() << "Invalid contact data";
-        return false;
+        emit contactAdded(reqId, false, "Invalid contact data");
+        return;
     }
 
-    if (m_dataAccessContext->contactTable()->saveContact(contact)) {
-        emit contactAdded(contact);
+    if (!m_contactTable) {
+        emit contactAdded(reqId, false, "Contact table not available");
+        return;
+    }
+
+    emit addContactRequested(reqId, contact);
+}
+
+void ContactController::updateContact(int reqId, const Contact& contact)
+{
+    if (!contact.isValid()) {
+        emit contactUpdated(reqId, false, "Invalid contact data");
+        return;
+    }
+
+    if (!m_contactTable) {
+        emit contactUpdated(reqId, false, "Contact table not available");
+        return;
+    }
+
+    emit updateContactRequested(reqId, contact);
+}
+
+void ContactController::deleteContact(int reqId, qint64 userId)
+{
+    if (!m_contactTable) {
+        emit contactDeleted(reqId, false, "Contact table not available");
+        return;
+    }
+
+    emit deleteContactRequested(reqId, userId);
+}
+
+void ContactController::getContact(int reqId, qint64 userId)
+{
+    if (!m_contactTable) {
+        emit contactLoaded(reqId, Contact());
+        return;
+    }
+
+    emit getContactRequested(reqId, userId);
+}
+
+void ContactController::getAllContacts(int reqId)
+{
+    if (!m_contactTable) {
+        emit allContactsLoaded(reqId, QList<Contact>());
+        return;
+    }
+
+    emit getAllContactsRequested(reqId);
+}
+
+void ContactController::searchContacts(int reqId, const QString& keyword)
+{
+    if (!m_contactTable) {
+        emit searchContactsResult(reqId, QList<Contact>());
+        return;
+    }
+
+    emit searchContactsRequested(reqId, keyword);
+}
+
+void ContactController::setContactStarred(int reqId, qint64 userId, bool starred)
+{
+    if (!m_contactTable) {
+        emit contactStarredChanged(reqId, false, "Contact table not available");
+        return;
+    }
+
+    emit setContactStarredRequested(reqId, userId, starred);
+}
+
+void ContactController::setContactBlocked(int reqId, qint64 userId, bool blocked)
+{
+    if (!m_contactTable) {
+        emit contactBlockedChanged(reqId, false, "Contact table not available");
+        return;
+    }
+
+    emit setContactBlockedRequested(reqId, userId, blocked);
+}
+
+void ContactController::getStarredContacts(int reqId)
+{
+    if (!m_contactTable) {
+        emit starredContactsLoaded(reqId, QList<Contact>());
+        return;
+    }
+
+    emit getStarredContactsRequested(reqId);
+}
+
+// 数据库操作结果处理槽函数
+void ContactController::onContactSaved(int reqId, bool success, const QString& error)
+{
+    if (success) {
         emit contactsChanged();
-        return true;
     }
-    
-    return false;
+    emit contactAdded(reqId, success, error);
 }
 
-bool ContactController::updateContact(const Contact& contact)
+void ContactController::onContactUpdated(int reqId, bool success, const QString& error)
 {
-    if (!contact.isValid()) {
-        qWarning() << "Invalid contact data";
-        return false;
-    }
-
-    if (m_dataAccessContext->contactTable()->updateContact(contact)) {
-        emit contactUpdated(contact);
+    if (success) {
         emit contactsChanged();
-        return true;
     }
-    
-    return false;
+    emit contactUpdated(reqId, success, error);
 }
 
-bool ContactController::deleteContact(qint64 userId)
+void ContactController::onContactDeleted(int reqId, bool success, const QString& error)
 {
-    if (m_dataAccessContext->contactTable()->deleteContact(userId)) {
-        emit contactDeleted(userId);
+    if (success) {
         emit contactsChanged();
-        return true;
     }
-    
-    return false;
+    emit contactDeleted(reqId, success, error);
 }
 
-Contact ContactController::getContact(qint64 userId)
+void ContactController::onContactLoaded(int reqId, const Contact& contact)
 {
-    return m_dataAccessContext->contactTable()->getContact(userId);
+    // 检查是否是更新操作的中间步骤
+    if (m_pendingUpdates.contains(reqId)) {
+        auto [userId, value] = m_pendingUpdates.take(reqId);
+        // .......
+    } else {
+        emit contactLoaded(reqId, contact);
+    }
 }
 
-QList<Contact> ContactController::getAllContacts()
+void ContactController::onAllContactsLoaded(int reqId, const QList<Contact>& contacts)
 {
-    return m_dataAccessContext->contactTable()->getAllContacts();
+    m_contactTreeModel->loadContacts(contacts);
+    emit allContactsLoaded(reqId, contacts);
 }
 
-bool ContactController::isContact(qint64 userId)
+void ContactController::onSearchContactsResult(int reqId, const QList<Contact>& contacts)
 {
-    return m_dataAccessContext->contactTable()->isContact(userId);
+    emit searchContactsResult(reqId, contacts);
 }
 
-QList<Contact> ContactController::searchContacts(const QString& keyword)
+void ContactController::onContactStarredSet(int reqId, bool success)
 {
-    return m_dataAccessContext->contactTable()->searchContacts(keyword);
-}
-
-bool ContactController::setContactStarred(qint64 userId, bool starred)
-{
-    if (m_dataAccessContext->contactTable()->setContactStarred(userId, starred)) {
-        emit contactStarredChanged(userId, starred);
+    if (success) {
         emit contactsChanged();
-        return true;
     }
-    
-    return false;
+    emit contactStarredChanged(reqId, success, success ? QString() : "Failed to set starred");
 }
 
-bool ContactController::setContactBlocked(qint64 userId, bool blocked)
+void ContactController::onContactBlockedSet(int reqId, bool success)
 {
-    if (m_dataAccessContext->contactTable()->setContactBlocked(userId, blocked)) {
-        emit contactBlockedChanged(userId, blocked);
+    if (success) {
         emit contactsChanged();
-        return true;
     }
-    
-    return false;
+    emit contactBlockedChanged(reqId, success, success ? QString() : "Failed to set blocked");
 }
 
-QList<Contact> ContactController::getStarredContacts()
+void ContactController::onStarredContactsLoaded(int reqId, const QList<Contact>& contacts)
 {
-    return m_dataAccessContext->contactTable()->getStarredContacts();
-}
-
-QString ContactController::getRemarkName(qint64 userId)
-{
-    return m_dataAccessContext->contactTable()->getRemarkName(userId);
-}
-
-bool ContactController::updateRemarkName(qint64 userId, const QString& remarkName)
-{
-    Contact contact = getContact(userId);
-    if (!contact.isValid()) {
-        return false;
-    }
-    
-    contact.remarkName = remarkName;
-    return updateContact(contact);
-}
-
-bool ContactController::updateDescription(qint64 userId, const QString& description)
-{
-    Contact contact = getContact(userId);
-    if (!contact.isValid()) {
-        return false;
-    }
-    
-    contact.description = description;
-    return updateContact(contact);
-}
-
-bool ContactController::addTag(qint64 userId, const QString& tag)
-{
-    Contact contact = getContact(userId);
-    if (!contact.isValid()) {
-        return false;
-    }
-    
-    contact.addTag(tag);
-    return updateContact(contact);
-}
-
-bool ContactController::removeTag(qint64 userId, const QString& tag)
-{
-    Contact contact = getContact(userId);
-    if (!contact.isValid()) {
-        return false;
-    }
-    
-    contact.removeTag(tag);
-    return updateContact(contact);
-}
-
-bool ContactController::updateLastContactTime(qint64 userId)
-{
-    Contact contact = getContact(userId);
-    if (!contact.isValid()) {
-        return false;
-    }
-    
-    contact.updateLastContactTime();
-    return updateContact(contact);
+    emit starredContactsLoaded(reqId, contacts);
 }

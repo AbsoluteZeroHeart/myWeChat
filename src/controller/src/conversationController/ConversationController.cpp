@@ -1,289 +1,139 @@
 #include "ConversationController.h"
 #include <QDebug>
-#include "DataAccessContext.h"
 #include <QJsonArray>
 #include <QJsonObject>
+#include "ConversationTable.h"
 
-ConversationController::ConversationController(QObject *parent)
+ConversationController::ConversationController(DatabaseManager* dbManager, QObject* parent)
     : QObject(parent)
+    , m_dbManager(dbManager)
+    , m_conversationTable(nullptr)
     , m_chatListModel(new ChatListModel(this))
-    , m_dataAccessContext(new DataAccessContext(this))
+    , m_reqIdCounter(0)
 {
+    if (m_dbManager) {
+        m_conversationTable = m_dbManager->conversationTable();
+        connectSignals();
+    } else {
+        qWarning() << "DatabaseManager is null in ConversationController constructor";
+    }
 }
 
 ConversationController::~ConversationController()
+{}
+
+int ConversationController::generateReqId()
 {
+    return m_reqIdCounter.fetchAndAddAcquire(1);
 }
 
-ChatListModel* ConversationController::chatListModel() const
+void ConversationController::connectSignals()
 {
-    return m_chatListModel;
+    if (!m_conversationTable) {
+        qWarning() << "ConversationTable is null, cannot connect signals";
+        return;
+    }
+
+    // 连接ConversationTable信号
+    connect(m_conversationTable, &ConversationTable::allConversationsLoaded,
+            this, &ConversationController::onAllConversationsLoaded);
+    connect(m_conversationTable, &ConversationTable::conversationSaved,
+            this, &ConversationController::onConversationSaved);
+    connect(m_conversationTable, &ConversationTable::conversationUpdated,
+            this, &ConversationController::onConversationUpdated);
+    connect(m_conversationTable, &ConversationTable::conversationDeleted,
+            this, &ConversationController::onConversationDeleted);
+    connect(m_conversationTable, &ConversationTable::dbError,
+            this, &ConversationController::onDbError);
+    connect(m_conversationTable, &ConversationTable::topStatusToggled,
+            this, &ConversationController::onTopStatusToggled);
 }
 
 void ConversationController::loadConversations()
 {
-    loadConversationsFromDatabase();
-    emit conversationLoaded();
+    if (!m_conversationTable) {
+        emit errorOccurred("Conversation table not available");
+        return;
+    }
+
+    int reqId = generateReqId();
+    m_pendingOperations.insert(reqId, "loadConversations");
+    QMetaObject::invokeMethod(m_conversationTable, "getAllConversations",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId));
 }
 
-bool ConversationController::createSingleChat(qint64 userId)
+void ConversationController::createSingleChat(qint64 userId)
 {
-    // 检查是否已存在该单聊会话
-    Conversation conv = m_dataAccessContext->conversationTable()->getConversationByTarget(userId, 0);
-    if (conv.isValid()) {
-        emit conversationCreated(conv.conversationId);
-        return true;
-    }
-
-    // 创建新会话
-    Conversation conversation;
-    conversation.conversationId = QDateTime::currentSecsSinceEpoch(); // 简单生成ID
-    conversation.userId = userId;
-    conversation.type = 0; // 单聊
-    conversation.title = getConversationTitle(0, userId);
-    conversation.avatar = getConversationAvatar(0, userId);
-    conversation.lastMessageContent = "";
-    conversation.lastMessageTime = QDateTime::currentSecsSinceEpoch();
-    conversation.unreadCount = 0;
-    conversation.isTop = false;
-
-    if (m_dataAccessContext->conversationTable()->saveConversation(conversation)) {
-        // 重新加载会话列表
-        loadConversationsFromDatabase();
-        emit conversationCreated(conversation.conversationId);
-        return true;
-    } else {
-        emit errorOccurred("创建会话失败");
-        return false;
-    }
 }
 
-bool ConversationController::createGroupChat(qint64 groupId)
+void ConversationController::createGroupChat(qint64 groupId)
 {
-    Conversation conv = m_dataAccessContext->conversationTable()->getConversationByTarget(groupId, 1);
-    if (conv.isValid()) {
-        emit conversationCreated(conv.conversationId);
-        return true;
-    }
-
-    // 创建新会话
-    Conversation conversation;
-    conversation.conversationId = QDateTime::currentSecsSinceEpoch(); // 简单生成ID
-    conversation.groupId = groupId;
-    conversation.type = 1; // 群聊
-    conversation.title = getConversationTitle(1, groupId);
-    conversation.avatar = getConversationAvatar(1, groupId);
-    conversation.lastMessageContent = "";
-    conversation.lastMessageTime = QDateTime::currentSecsSinceEpoch();
-    conversation.unreadCount = 0;
-    conversation.isTop = false;
-
-    if (m_dataAccessContext->conversationTable()->saveConversation(conversation)) {
-        // 重新加载会话列表
-        loadConversationsFromDatabase();
-        emit conversationCreated(conversation.conversationId);
-        return true;
-    } else {
-        emit errorOccurred("创建群聊会话失败");
-        return false;
-    }
-}
-
-void ConversationController::updateLastMessage(qint64 conversationId, const QString &message)
-{
-    qint64 lastMessageTime = QDateTime::currentSecsSinceEpoch();
-    
-    // 更新模型
-    m_chatListModel->updateLastMessage(conversationId, message, lastMessageTime);
-
-    m_dataAccessContext->conversationTable()->updateConversationLastMessage(conversationId, message, lastMessageTime);
-    emit conversationUpdated(conversationId);
-}
-
-
-void ConversationController::updateUnreadCount(qint64 conversationId, int count)
-{
-    // 更新模型
-    Conversation conversation = m_dataAccessContext->conversationTable()->getConversation(conversationId);
-    if (conversation.isValid()) {
-        conversation.unreadCount = count;
-        m_chatListModel->updateConversation(conversation);
-    }
-
-    // 更新数据库
-    Conversation updateData;
-    updateData.conversationId = conversationId;
-    updateData.unreadCount = count;
-    
-    m_dataAccessContext->conversationTable()->updateConversationPartial(updateData);
-    emit conversationUpdated(conversationId);
-}
-
-void ConversationController::incrementUnreadCount(qint64 conversationId)
-{
-    Conversation conversation = m_dataAccessContext->conversationTable()->getConversation(conversationId);
-    if (conversation.isValid()) {
-        updateUnreadCount(conversationId, conversation.unreadCount + 1);
-    }
 }
 
 void ConversationController::clearUnreadCount(qint64 conversationId)
 {
-    updateUnreadCount(conversationId, 0);
+    int reqId = generateReqId();
+
+    // 预先更新模型（乐观更新）
+    if (m_chatListModel) {
+        m_chatListModel->updateUnreadCount(conversationId, 0);
+    }
+    QMetaObject::invokeMethod(m_conversationTable, "setUnreadCount",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(qint64, conversationId),
+                              Q_ARG(int, 0));
 }
 
 void ConversationController::handltoggleReadStatus(qint64 conversationId)
 {
-    Conversation conversation = m_dataAccessContext->conversationTable()->getConversation(conversationId);
-    if (!conversation.isValid()) {
+    if (!m_conversationTable) {
         return;
     }
 
-    // 如果当前有未读消息，则标记为已读；如果已读，则设置为1条未读
-    int newUnreadCount = (conversation.unreadCount > 0) ? 0 : 1;
-
-    updateUnreadCount(conversationId, newUnreadCount);
-
-    qDebug() << "Toggle read status for conversation:" << conversationId
-             << "New unread count:" << newUnreadCount;
-}
-
-
-void ConversationController::toggleTopStatus(qint64 conversationId)
-{
-    Conversation conversation = m_dataAccessContext->conversationTable()->getConversation(conversationId);
-    if (conversation.isValid()) {
-        bool newTopStatus = !conversation.isTop;
-        
-        // 更新模型
-        conversation.isTop = newTopStatus;
-        m_chatListModel->updateConversation(conversation);
-
-        // 更新数据库
-        m_dataAccessContext->conversationTable()->setConversationTop(conversationId, newTopStatus);
-        emit conversationUpdated(conversationId);
-    }
-}
-
-void ConversationController::deleteConversation(qint64 conversationId)
-{
-    if (m_dataAccessContext->conversationTable()->deleteConversation(conversationId)) {
-        m_chatListModel->removeConversation(conversationId);
-        emit conversationDeleted(conversationId);
-    } else {
-        emit errorOccurred("删除会话失败");
-    }
-}
-
-Conversation ConversationController::getConversation(qint64 conversationId)
-{
-    return m_dataAccessContext->conversationTable()->getConversation(conversationId);
-}
-
-QVariantMap ConversationController::getConversationInfo(qint64 conversationId)
-{
-    Conversation conversation = m_dataAccessContext->conversationTable()->getConversation(conversationId);
-    QVariantMap result;
-    
-    if (conversation.isValid()) {
-        result["conversationId"] = conversation.conversationId;
-        result["groupId"] = conversation.groupId;
-        result["userId"] = conversation.userId;
-        result["type"] = conversation.type;
-        result["title"] = conversation.title;
-        result["avatar"] = conversation.avatar;
-        result["avatarLocalPath"] = conversation.avatarLocalPath;
-        result["lastMessageContent"] = conversation.lastMessageContent;
-        result["lastMessageTime"] = conversation.lastMessageTime;
-        result["unreadCount"] = conversation.unreadCount;
-        result["isTop"] = conversation.isTop;
-        result["isGroup"] = conversation.isGroup();
-    }
-    
-    return result;
-}
-
-QVariantList ConversationController::searchConversations(const QString &keyword)
-{
-    QVariantList results;
-    
-    for (int i = 0; i < m_chatListModel->rowCount(); ++i) {
-        Conversation conversation = m_chatListModel->getConversationAt(i);
-        if (conversation.title.contains(keyword, Qt::CaseInsensitive) || 
-            conversation.lastMessageContent.contains(keyword, Qt::CaseInsensitive)) {
-            QVariantMap item;
-            item["conversationId"] = conversation.conversationId;
-            item["title"] = conversation.title;
-            item["lastMessage"] = conversation.lastMessageContent;
-            item["isGroup"] = conversation.isGroup();
-            results.append(item);
+    // 异步获取当前会话信息
+    int reqId = generateReqId();
+    int currentUnread = 0;
+    if (m_chatListModel) {
+        Conversation currentConv = m_chatListModel->getConversation(conversationId);
+        if (currentConv.isValid()) {
+            currentUnread = (currentConv.unreadCount>0)? 0:1;
         }
+        m_chatListModel->updateUnreadCount(conversationId, currentUnread);
     }
-    
-    return results;
-}
-
-void ConversationController::onNewMessageReceived(qint64 conversationId, const QString &message, qint64 timestamp)
-{
-    Q_UNUSED(timestamp)
-    
-    // 更新最后消息
-    updateLastMessage(conversationId, message);
-    incrementUnreadCount(conversationId);
-}
-
-void ConversationController::loadConversationsFromDatabase()
-{
-    QList<Conversation> conversations = m_dataAccessContext->conversationTable()->getAllConversations();
-    m_chatListModel->clearAll();
-    for (const Conversation& conv : std::as_const(conversations)) {
-        m_chatListModel->addConversation(conv);
-    }
-}
-
-bool ConversationController::updateConversationInDatabase(const Conversation& conversation)
-{
-    return m_dataAccessContext->conversationTable()->updateConversationPartial(conversation);
-}
-
-QString ConversationController::getConversationTitle(int type, qint64 targetId)
-{
-    if (type == 0) {
-        QString remarkName = m_dataAccessContext->contactTable()->getRemarkName(targetId);
-        if(remarkName.isEmpty())
-        {
-            return m_dataAccessContext->userTable()->getNickname(targetId);
-        }
-        return remarkName;
-
-    } else {
-        Group group = m_dataAccessContext->groupTable()->getGroup(targetId);
-        if (!group.isValid()) {
-            QString group_note = group.groupNote;
-            if(!group_note.isEmpty()) return group_note;
-
-            return group.groupName;
-        }
-    }
-    
-    return QString("未知名");
-}
-
-QString ConversationController::getConversationAvatar(int type, qint64 targetId)
-{
-    if (type == 0) {
-        return m_dataAccessContext->userTable()->getAvatarLocalPath(targetId);
-
-    } else {
-        return m_dataAccessContext->groupTable()->getLocalAvatarPath(targetId);
-    }
-    return QString();
+    QMetaObject::invokeMethod(m_conversationTable, "setUnreadCount",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(qint64, conversationId),
+                              Q_ARG(int, currentUnread));
 }
 
 void ConversationController::handleToggleTop(qint64 conversationId)
 {
-    toggleTopStatus(conversationId);
-    loadConversations();
+    if (!m_conversationTable) {
+        return;
+    }
+
+    // 异步获取当前会话信息
+    int reqId = generateReqId();
+    QMetaObject::invokeMethod(m_conversationTable, "toggleTopStatus",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(qint64, conversationId));
+}
+
+void ConversationController::deleteConversation(qint64 conversationId)
+{
+    if (!m_conversationTable) {
+        return;
+    }
+    // 异步删除会话
+    int reqId = generateReqId();
+    QMetaObject::invokeMethod(m_conversationTable, "deleteConversation",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(qint64, conversationId));
 }
 
 void ConversationController::handleToggleMute(qint64 conversationId)
@@ -294,10 +144,74 @@ void ConversationController::handleToggleMute(qint64 conversationId)
 void ConversationController::handleOpenInWindow(qint64 conversationId)
 {
     qDebug() << "Open conversation in window:" << conversationId;
-    emit openConversationInWindow(conversationId);
 }
 
 void ConversationController::handleDelete(qint64 conversationId)
 {
     deleteConversation(conversationId);
+}
+
+// 数据库操作结果处理槽函数
+void ConversationController::onAllConversationsLoaded(int reqId, const QList<Conversation>& conversations)
+{
+    QString operation = m_pendingOperations.take(reqId);
+
+    m_chatListModel->clearAll();
+    for (const Conversation& conv : std::as_const(conversations)) {
+        m_chatListModel->addConversation(conv);
+    }
+    emit conversationLoaded();
+}
+
+void ConversationController::onConversationSaved(int reqId, bool success, const QString& error)
+{
+
+}
+
+void ConversationController::onConversationUpdated(int reqId, bool success, const QString& error)
+{
+}
+
+void ConversationController::onConversationDeleted(int reqId, bool success, const qint64& conversationId)
+{
+    if (success) {
+        m_chatListModel->removeConversation(conversationId);
+    } else {
+        emit errorOccurred("删除会话失败");
+    }
+}
+
+void ConversationController::onTopStatusToggled(int reqId, qint64 conversationId)
+{
+    loadConversations();
+}
+
+void ConversationController::onDbError(int reqId, const QString& error)
+{
+    qWarning() << "Database error in request" << reqId << ":" << error;
+
+    // 发射错误信号
+    emit errorOccurred(error);
+}
+
+
+
+// 当前会话相关操作
+Conversation ConversationController::getCurrentConversation() const
+{
+    if (m_chatListModel && m_currentConversationId > 0) {
+        return m_chatListModel->getConversation(m_currentConversationId);
+    }
+    return Conversation();  // 返回空的Conversation对象
+}
+
+void ConversationController::setCurrentConversationId(qint64 conversationId)
+{
+    if (m_currentConversationId != conversationId) {
+        m_currentConversationId = conversationId;
+
+        // 发出当前会话变化的信号
+        Conversation currentConv = getCurrentConversation();
+        qDebug() << "Current conversation changed to:" << conversationId;
+    }
 }

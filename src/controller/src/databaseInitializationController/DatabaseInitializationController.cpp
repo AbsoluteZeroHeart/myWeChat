@@ -1,5 +1,5 @@
 #include "DatabaseInitializationController.h"
-#include "DatabaseManager.h"
+#include "DatabaseInitializer.h"
 // #include "NetworkManager.h"  // 假设有网络管理器
 #include <QDebug>
 
@@ -7,7 +7,7 @@ DatabaseInitializationController::DatabaseInitializationController(QObject *pare
     : QObject(parent)
     , m_initializationInProgress(false)
     , m_currentProgress(0)
-    , dbManager(new DatabaseManager(this))
+    , databaseInitializer(new DatabaseInitializer(this))
 {
 }
 
@@ -26,7 +26,7 @@ void DatabaseInitializationController::initialize()
     m_currentProgress = 0;
 
     // 延迟初始化，确保所有连接都已建立
-    QTimer::singleShot(100, this, &DatabaseInitializationController::performInitialization);
+    performInitialization();
 }
 
 void DatabaseInitializationController::performInitialization()
@@ -41,7 +41,7 @@ void DatabaseInitializationController::initializeDatabase()
 {
     updateProgress(10, "初始化数据库...");
 
-    bool success = dbManager->initializeDatabase();
+    bool success = databaseInitializer->ensureInitialized();
 
     onDatabaseInitializationFinished(success, "Database initialization failed immediately");
 }

@@ -1,64 +1,94 @@
 #include "MessageController.h"
-#include "DataAccessContext.h"
 #include <QFileInfo>
 #include <QDateTime>
 #include <QDir>
 #include <QDebug>
 #include <QApplication>
 #include <QClipboard>
+#include "MessageTable.h"
+#include "UserTable.h"
+#include <QMimeData>
+#include "ImageProcessor.h"
+#include "FileCopyProcessor.h"
+#include <QDir>
+#include <QStandardPaths>
+#include "VideoProcessor.h"
 
-MessageController::MessageController(QObject *parent)
+
+MessageController::MessageController(DatabaseManager* dbManager, QObject* parent)
     : QObject(parent)
+    , dbManager(dbManager)
+    , messageTable(nullptr)
+    , contactTable(nullptr)
+    , userTable(nullptr)
     , m_messagesModel(new ChatMessagesModel(this))
-    , m_dataAccessContext(new DataAccessContext(this))
     , m_currentConversationId(-1)
-    , m_currentUserId(-1)
-    , m_loading(false)
-    , m_hasMoreMessages(false)
-    , m_currentOffset(0)
-    , m_temporaryIdCounter(1000000)
-    , m_isSearchMode(false)
+    , currentUser(User())
+    , loading(false)
+    , currentOffset(0)
+    , isSearchMode(false)
+    , reqIdCounter(0)
+
+    , imageProcessor(new ImageProcessor(this))
+    , fileCopyProcessor(new FileCopyProcessor(this))
+    , videoProcessor(new VideoProcessor(this))
 {
+    if (dbManager) {
+        messageTable = dbManager->messageTable();
+        contactTable = dbManager->contactTable();
+        userTable = dbManager->userTable();
+        connectSignals();
+    } else {
+        qWarning() << "DatabaseManager is null in MessageController constructor";
+    }
+    // 异步设置当前用户
+    if (userTable) {
+        int requestId = generateReqId();
+        QMetaObject::invokeMethod(userTable, "getCurrentUser",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(int, requestId));
+    }
 }
 
 MessageController::~MessageController()
 {
-    for (auto &timer : m_downloadTimers) {
-        if (timer && timer->isActive()) {
-            timer->stop();
-        }
+
+}
+
+int MessageController::generateReqId()
+{
+    return reqIdCounter.fetchAndAddAcquire(1);
+}
+
+void MessageController::connectSignals()
+{
+    if (!messageTable) {
+        qWarning() << "MessageTable is null, cannot connect signals";
+        return;
     }
-    m_downloadTimers.clear();
-}
 
-ChatMessagesModel* MessageController::messagesModel() const
-{
-    return m_messagesModel;
-}
+    // 连接MessageTable信号
+    connect(messageTable, &MessageTable::messageSaved, this, &MessageController::onMessageSaved);
+    connect(messageTable, &MessageTable::messageDeleted, this, &MessageController::onMessageDeleted);
+    connect(messageTable, &MessageTable::messagesLoaded, this, &MessageController::onMessagesLoaded);
+    connect(messageTable, &MessageTable::mediaItemsLoaded, this, &MessageController::onMediaItemsLoaded);
+    connect(messageTable, &MessageTable::dbError, this, &MessageController::onDbError);
 
-qint64 MessageController::currentConversationId() const
-{
-    return m_currentConversationId;
-}
+    if(userTable){
+        connect(userTable, &UserTable::currentUserLoaded, this, &MessageController::setCurrentUser);
+    }
 
-qint64 MessageController::currentUserId() const
-{
-    return m_currentUserId;
-}
+    if(imageProcessor){
+        connect(imageProcessor, &ImageProcessor::imageProcessed, this, &MessageController::sendImageMessage);
+    }
 
-bool MessageController::loading() const
-{
-    return m_loading;
-}
+    if(fileCopyProcessor){
+        connect(fileCopyProcessor, &FileCopyProcessor::fileCopied, this, &MessageController::sendFileMessage);
+    }
 
-bool MessageController::hasMoreMessages() const
-{
-    return m_hasMoreMessages;
-}
-
-QList<MediaItem> MessageController::getMediaItems(qint64 conversationId)
-{
-    return m_dataAccessContext->messageTable()->getMediaItems(conversationId);
+    if(videoProcessor){
+        connect(videoProcessor, &VideoProcessor::videoProcessed, this, &MessageController::sendVideoMessage);
+    }
 }
 
 void MessageController::setCurrentConversationId(qint64 conversationId)
@@ -66,282 +96,359 @@ void MessageController::setCurrentConversationId(qint64 conversationId)
     if (m_currentConversationId != conversationId) {
         m_currentConversationId = conversationId;
         m_messagesModel->setConversationId(conversationId);
-        m_currentOffset = 0;
-        m_isSearchMode = false;
+        currentOffset = 0;
+        isSearchMode = false;
 
         loadRecentMessages();
-        setCurrentUserId(m_dataAccessContext->userTable()->getCurrentUserId());
     }
 }
 
-void MessageController::setCurrentUserId(qint64 userId)
+void MessageController::setCurrentUser(int reqId, User user)
 {
-    if (m_currentUserId != userId) {
-        m_currentUserId = userId;
-        m_messagesModel->setCurrentUserId(userId);
-        emit currentUserIdChanged();
+    if (currentUser.userId != user.userId && user.userId != -1) {
+        currentUser = user;
+        m_messagesModel->setCurrentUserId(currentUser.userId);
     }
 }
 
+
+// 文本发送
 void MessageController::sendTextMessage(const QString& content)
 {
-    if (content.trimmed().isEmpty() || m_currentConversationId == 0) {
+    if (content.trimmed().isEmpty() || m_currentConversationId == -1) {
         return;
     }
 
-    Message message = createMessage(MessageType::TEXT, content);
-    qint64 temporaryId = generateTemporaryId();
-    m_temporaryMessages[temporaryId] = message;
+    Message message = createMessage(m_currentConversationId, MessageType::TEXT, content);
 
     // 先添加到模型（立即显示）
     m_messagesModel->addMessage(message);
+    currentOffset += 1;
 
-    QTimer::singleShot(0, [this, temporaryId]() {
-        auto it = m_temporaryMessages.find(temporaryId);
-        if (it != m_temporaryMessages.end()) {
-            Message& message = it.value();
-            if (saveMessageToDatabase(message)) {
-                handleSendSuccess(temporaryId, message.messageId);
-            } else {
-                handleSendFailure(temporaryId, "发送失败");
-            }
-        }
-    });
+    // 异步保存到数据库
+    int reqId = generateReqId();
+    QMetaObject::invokeMethod(messageTable, "saveMessage",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(Message, message));
 }
 
-void MessageController::sendImageMessage(const QString& filePath, const QString& description)
+
+// 图片发送
+void MessageController::preprocessImageBeforeSend(QStringList pathLis)
 {
-    // 实现图片消息发送
-    Q_UNUSED(filePath);
-    Q_UNUSED(description);
+    imageProcessor->processImages(m_currentConversationId, pathLis);
+}
+void MessageController::sendImageMessage(const qint64 conversationId,
+                                         const QString &originalImagePath,
+                                         const QString &thumbnailPath,
+                                         bool success)
+{
+    if(!success) return;
+
+    QFileInfo fileInfo(originalImagePath);
+
+    qint64 fileSize = fileInfo.size();
+    Message message = createMessage(conversationId,
+                                    MessageType::IMAGE,
+                                    "【图片】"+fileInfo.fileName(),
+                                    originalImagePath,
+                                    fileSize,
+                                    0,
+                                    thumbnailPath);
+
+    if(conversationId==m_currentConversationId){
+        m_messagesModel->addMessage(message);
+        currentOffset += 1;
+    }
+
+    int reqId = generateReqId();
+    QMetaObject::invokeMethod(messageTable, "saveMessage",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(Message, message));
 }
 
-void MessageController::sendVideoMessage(const QString& filePath, int duration, const QString& description)
+
+// 视频发送
+void MessageController::preprocessVideoBeforeSend(QStringList fileList)
 {
-    // 实现视频消息发送
-    Q_UNUSED(filePath);
-    Q_UNUSED(duration);
-    Q_UNUSED(description);
+    videoProcessor->processVideos(m_currentConversationId, fileList);
+}
+void MessageController::sendVideoMessage(qint64 conversationId,
+                                         const QString &originalPath,
+                                         const QString &thumbnailPath,
+                                         bool success)
+{
+    QFileInfo fileInfo(originalPath);
+    qint64 fileSize = fileInfo.size();
+    Message message = createMessage(conversationId,
+                                    MessageType::VIDEO,
+                                    "【视频】"+fileInfo.fileName(),
+                                    originalPath,
+                                    fileSize,
+                                    0,
+                                    thumbnailPath);
+
+
+    if(conversationId==m_currentConversationId){
+        m_messagesModel->addMessage(message);
+        currentOffset += 1;
+    }
+
+    int reqId = generateReqId();
+    QMetaObject::invokeMethod(messageTable, "saveMessage",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(Message, message));
 }
 
-void MessageController::sendFileMessage(const QString& filePath, const QString& fileName)
+
+// 文件发送
+void MessageController::preprocessFileBeforeSend(QStringList fileList)
 {
-    // 实现文件消息发送
-    Q_UNUSED(filePath);
-    Q_UNUSED(fileName);
+    fileCopyProcessor->copyFiles(m_currentConversationId, fileList);
 }
+void MessageController::sendFileMessage(const qint64 conversationId,
+                                        bool success,
+                                        const QString &sourcePath,
+                                        const QString &targetPath,
+                                        const QString &errorMessage)
+{
+    QFileInfo fileInfo(targetPath);
+    qint64 fileSize = fileInfo.size();
+    Message message = createMessage(conversationId, MessageType::FILE, "【文件】"+fileInfo.fileName(), targetPath, fileSize);
+
+    if(conversationId==m_currentConversationId){
+        m_messagesModel->addMessage(message);
+        currentOffset += 1;
+    }
+
+    int reqId = generateReqId();
+    QMetaObject::invokeMethod(messageTable, "saveMessage",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(Message, message));
+}
+
 
 void MessageController::sendVoiceMessage(const QString& filePath, int duration)
 {
-    // 实现语音消息发送
-    Q_UNUSED(filePath);
-    Q_UNUSED(duration);
-}
-
-
-void MessageController::recallMessage(qint64 messageId)
-{
-    // 实现消息撤回
-    Q_UNUSED(messageId);
-}
-
-void MessageController::saveMessageMedia(qint64 messageId, const QString& savePath)
-{
-    Message message = m_messagesModel->getMessageById(messageId);
-    if (!message.isValid() || !message.hasFile()) {
+    if (filePath.isEmpty() || m_currentConversationId == -1) {
         return;
     }
 
-    QString sourcePath = message.filePath;
-    if (sourcePath.isEmpty()) {
-        downloadMedia(messageId);
+    qint64 fileSize = 0;
+    Message message = createMessage(m_currentConversationId, MessageType::VOICE, "语音消息", filePath, fileSize, duration);
+
+    m_messagesModel->addMessage(message);
+
+    int reqId = generateReqId();
+
+    QMetaObject::invokeMethod(messageTable, "saveMessage",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(Message, message));
+}
+
+
+// 异步查询加载操作
+void MessageController::loadRecentMessages(int limit)
+{
+    if (m_currentConversationId == -1 || !messageTable) {
         return;
     }
 
-    if (QFile::copy(sourcePath, savePath)) {
-        qDebug() << "媒体文件已保存到:" << savePath;
-    }
+    loading = true;
+    currentOffset = 0;
+
+    int reqId = generateReqId();
+    pendingOperations.insert(reqId, "loadRecentMessages");
+
+    QMetaObject::invokeMethod(messageTable, "getMessages",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(qint64, m_currentConversationId),
+                              Q_ARG(int, limit),
+                              Q_ARG(int, 0));
 }
 
+void MessageController::loadMoreMessages(int limit)
+{
+    if (loading || m_currentConversationId == -1 || !messageTable) {
+        return;
+    }
+
+    loading = true;
+
+    int reqId = generateReqId();
+    pendingOperations.insert(reqId, "loadMoreMessages");
+
+    QMetaObject::invokeMethod(messageTable, "getMessages",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(qint64, m_currentConversationId),
+                              Q_ARG(int, limit),
+                              Q_ARG(int, currentOffset));
+}
+
+void MessageController::getMediaItems(qint64 conversationId)
+{
+    if (!messageTable) {
+        emit mediaItemsLoaded(-1, QList<MediaItem>());
+        return;
+    }
+
+    int reqId = generateReqId();
+
+    QMetaObject::invokeMethod(messageTable, "getMediaItems",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(qint64, conversationId));
+}
+
+
+// 控制UI 操作
 void MessageController::handleCopy(const Message &message)
 {
     if(message.isText()){
         QApplication::clipboard()->setText(message.content);
     }
-    else if(message.isImage()){
-        QImage image(message.filePath);
-        if(!image.isNull()) {
-            QApplication::clipboard()->setImage(image);
-            qDebug() << "图片复制成功";
-        }
-    }
+    else if(message.isMedia() || message.isFile() || message.isImage())
+    {
+        QList<QUrl> urls;
+        urls.append(QUrl::fromLocalFile(message.filePath));
 
-}
-void MessageController::handleZoom(){}
-void MessageController::handleTranslate(){}
-void MessageController::handleSearch(){}
-void MessageController::handleForward(){}
-void MessageController::handleFavorite(){}
-void MessageController::handleRemind(){}
-void MessageController::handleMultiSelect(){}
-void MessageController::handleQuote(){}
-void MessageController::handleDelete(const Message & message)
-{
-    if (deleteMessageFromDatabase(message.messageId)) {
-        m_messagesModel->removeMessageById(message.messageId);
+        QMimeData *mimeData = new QMimeData;
+        mimeData->setUrls(urls);
+        QApplication::clipboard()->setMimeData(mimeData);
     }
 }
 
-void MessageController::loadRecentMessages(int limit)
+void MessageController::handleZoom()
 {
-    if (m_currentConversationId == -1) {
+    // 实现缩放逻辑
+}
+
+void MessageController::handleTranslate()
+{
+    // 实现翻译逻辑
+}
+
+void MessageController::handleSearch()
+{
+    // 实现搜索逻辑
+}
+
+void MessageController::handleForward()
+{
+    // 实现转发逻辑
+}
+
+void MessageController::handleFavorite()
+{
+    // 实现收藏逻辑
+}
+
+void MessageController::handleRemind()
+{
+    // 实现提醒逻辑
+}
+
+void MessageController::handleMultiSelect()
+{
+    // 实现多选逻辑
+}
+
+void MessageController::handleQuote()
+{
+    // 实现引用逻辑
+}
+
+void MessageController::handleDelete(const Message &message)
+{
+    if (!messageTable) {
         return;
     }
 
-    m_loading = true;
-    m_currentOffset = 0;
-    QVector<Message> messages = loadMessagesFromDatabase(limit, 0);
+    // 先从模型移除
+    m_messagesModel->removeMessageById(message.messageId);
 
-    m_messagesModel->clearAll();
-    m_messagesModel->addMessages(messages);
-    m_currentOffset = messages.size();
+    // 异步从数据库删除
+    int reqId = generateReqId();
 
-    int totalCount = getMessageCountFromDatabase();
-    m_hasMoreMessages = m_currentOffset < totalCount;
-    m_loading = false;
-    emit hasMoreMessagesChanged();
-    emit messagesLoaded(m_hasMoreMessages);
+    QMetaObject::invokeMethod(messageTable, "deleteMessage",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(qint64, message.messageId));
 }
 
-void MessageController::loadMoreMessages(int limit)
+
+// 处理数据库异步信号
+void MessageController::onMessageSaved(int reqId, bool ok, QString reason)
 {
-    if (m_loading || !m_hasMoreMessages || m_currentConversationId == 0) {
-        return;
+    if(!ok){
+        qDebug()<<reason;
     }
-
-    m_loading = true;
-
-    QVector<Message> messages = loadMessagesFromDatabase(limit, m_currentOffset);
-
-    for (int i = messages.size() - 1; i >= 0; --i) {
-        m_messagesModel->insertMessage(0, messages[i]);
-    }
-    m_currentOffset += messages.size();
-
-    int totalCount = getMessageCountFromDatabase();
-    m_hasMoreMessages = m_currentOffset < totalCount;
-
-    m_loading = false;
-    emit hasMoreMessagesChanged();
-    emit messagesLoaded(m_hasMoreMessages);
-}
-
-void MessageController::refreshMessages()
-{
-    loadRecentMessages();
-}
-
-void MessageController::toggleMessageFavorite(qint64 messageId)
-{
-    // 实现消息收藏
-    Q_UNUSED(messageId);
-}
-
-void MessageController::downloadMedia(qint64 messageId)
-{
-    // 实现媒体下载
-    Q_UNUSED(messageId);
-}
-
-void MessageController::cancelDownload(qint64 messageId)
-{
-    if (m_downloadTimers.contains(messageId)) {
-        m_downloadTimers[messageId]->stop();
-        m_downloadTimers.remove(messageId);
-        m_downloadProgress.remove(messageId);
+    else {
+        emit messageSaved();
+        loadRecentMessages();
     }
 }
 
-// 私有方法实现
-bool MessageController::saveMessageToDatabase(Message& message)
+void MessageController::onMessageDeleted(int reqId, bool success, const QString& error)
 {
-    if (!m_dataAccessContext->messageTable()) {
-        return false;
-    }
-
-    bool success = m_dataAccessContext->messageTable()->saveMessage(message);
-
-    if (success) {
-        // 发送成功处理
-    }
-
-    return success;
+    emit messageDeleted(reqId, success, error);
 }
 
-bool MessageController::updateMessageInDatabase(const Message& message)
+void MessageController::onMessagesLoaded(int reqId, const QVector<Message>& messages)
 {
-    if (!m_dataAccessContext->messageTable()) {
-        return false;
-    }
+    QString operation = pendingOperations.take(reqId);
+    loading = false;
 
-    return m_dataAccessContext->messageTable()->updateMessage(message);
-}
-
-bool MessageController::deleteMessageFromDatabase(qint64 messageId)
-{
-    if (!m_dataAccessContext->messageTable()) {
-        return false;
-    }
-
-    return m_dataAccessContext->messageTable()->deleteMessage(messageId);
-}
-
-QVector<Message> MessageController::loadMessagesFromDatabase(int limit, int offset)
-{
-    QVector<Message> messages;
-
-    if (!m_dataAccessContext->messageTable() || m_currentConversationId == 0) {
-        return messages;
-    }
-
-    messages = m_dataAccessContext->messageTable()->getMessages(m_currentConversationId, limit, offset);
-    if (messages.isEmpty()) {
-        return messages;
-    }
-
-    // 为消息添加发送者信息
-    for (Message& message : messages) {
-        qint64 senderId = message.senderId;
-
-        if (m_dataAccessContext->contactTable()->isContact(senderId)) {
-            message.senderName = m_dataAccessContext->contactTable()->getRemarkName(senderId);
-        } else {
-            message.senderName = m_dataAccessContext->userTable()->getNickname(senderId);
+    if (operation == "loadRecentMessages") {
+        // 加载最近消息
+        m_messagesModel->clearAll();
+        m_messagesModel->addMessages(messages);
+        currentOffset = messages.count();
+    } else if (operation == "loadMoreMessages") {
+        // 加载更多历史消息
+        for(int i = messages.count()-1; i >= 0; i--){
+            m_messagesModel->insertMessage(0, messages[i]);
         }
-        message.avatar = m_dataAccessContext->userTable()->getAvatarLocalPath(senderId);
+        currentOffset += messages.count();
     }
-    std::reverse(messages.begin(), messages.end());
-
-    return messages;
 }
 
-int MessageController::getMessageCountFromDatabase()
+void MessageController::onMediaItemsLoaded(int reqId, const QList<MediaItem>& items)
 {
-    if (!m_dataAccessContext->messageTable() || m_currentConversationId == 0) {
-        return 0;
-    }
-
-    return m_dataAccessContext->messageTable()->getMessageCount(m_currentConversationId);
+    emit mediaItemsLoaded(reqId, items);
 }
 
-Message MessageController::createMessage(MessageType type, const QString& content,
-                                         const QString& filePath, qint64 fileSize,
-                                         int duration, const QString& thumbnailPath)
+void MessageController::onDbError(int reqId, const QString& error)
+{
+    qWarning() << "Database error in request" << reqId << ":" << error;
+
+
+}
+
+// 私有辅助方法
+Message MessageController::createMessage(qint64 conversationId,
+                                         MessageType type,
+                                         const QString& content,
+                                         const QString& filePath,
+                                         qint64 fileSize,
+                                         int duration,
+                                         const QString& thumbnailPath)
 {
     Message message;
-    message.messageId = generateTemporaryId();
-    message.conversationId = m_currentConversationId;
-    message.senderId = m_currentUserId;
+    message.messageId = QDateTime::currentMSecsSinceEpoch();
+    message.conversationId = conversationId;
+
+    message.senderId = currentUser.userId;
+    message.senderName = currentUser.nickname;
+    message.avatar = currentUser.avatarLocalPath;
+
     message.type = type;
     message.content = content;
     message.filePath = filePath;
@@ -350,48 +457,6 @@ Message MessageController::createMessage(MessageType type, const QString& conten
     message.thumbnailPath = thumbnailPath;
     message.timestamp = QDateTime::currentSecsSinceEpoch();
 
-    // 设置发送者信息
-    message.senderName = m_dataAccessContext->userTable()->getNickname(m_currentUserId);
-    message.avatar = m_dataAccessContext->userTable()->getAvatarLocalPath(m_currentUserId);
-
     return message;
 }
 
-qint64 MessageController::calculateFileSize(const QString& filePath)
-{
-    QFileInfo fileInfo(filePath);
-    return fileInfo.exists() ? fileInfo.size() : 0;
-}
-
-void MessageController::asyncDownloadMedia(const Message& message)
-{
-    // 实现异步下载媒体文件的逻辑
-    Q_UNUSED(message);
-}
-
-qint64 MessageController::generateTemporaryId()
-{
-    return m_temporaryIdCounter++;
-}
-
-void MessageController::handleSendSuccess(qint64 temporaryId, qint64 actualId)
-{
-    auto it = m_temporaryMessages.find(temporaryId);
-    if (it != m_temporaryMessages.end()) {
-        Message message = it.value();
-        m_temporaryMessages.remove(temporaryId);
-        // 更新消息ID并通知成功
-        message.messageId = actualId;
-        m_messagesModel->updateMessage(message);
-    }
-}
-
-void MessageController::handleSendFailure(qint64 temporaryId, const QString& error)
-{
-    auto it = m_temporaryMessages.find(temporaryId);
-    if (it != m_temporaryMessages.end()) {
-        m_temporaryMessages.remove(temporaryId);
-        // 从模型中移除失败的消息
-        m_messagesModel->removeMessageById(temporaryId);
-    }
-}

@@ -89,4 +89,6 @@ struct MediaCache {
     }
 };
 
+Q_DECLARE_METATYPE(MediaCache)
+
 #endif // MEDIACACHE_H

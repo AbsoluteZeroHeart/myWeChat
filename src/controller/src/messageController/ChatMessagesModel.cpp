@@ -148,15 +148,6 @@ bool ChatMessagesModel::setData(const QModelIndex &index, const QVariant &value,
     return true;
 }
 
-// Qt::ItemFlags ChatMessagesModel::flags(const QModelIndex &index) const
-// {
-//     Qt::ItemFlags flags = QAbstractListModel::flags(index);
-//     if (index.isValid()) {
-//         flags |= Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable;
-//     }
-//     return flags;
-// }
-
 QHash<int, QByteArray> ChatMessagesModel::roleNames() const
 {
     QHash<int, QByteArray> roles;

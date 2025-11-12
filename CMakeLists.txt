@@ -14,6 +14,12 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
+# 添加cmake模块路径
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
+# 查找FFmpeg包
+find_package(FFmpeg REQUIRED)
+
 # 查找Qt包 - 添加 Concurrent 模块
 find_package(QT NAMES Qt6 REQUIRED COMPONENTS
     Widgets

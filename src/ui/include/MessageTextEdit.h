@@ -20,7 +20,8 @@
 struct FileItem {
     QString filePath;
     QString fileName;
-    bool isImage;
+    bool isImage = false;
+    bool isVideo = false;
     QImage thumbnail; // 用于图片的缩略图
 };
 
@@ -31,8 +32,6 @@ class MessageTextEdit : public QTextEdit
 public:
     explicit MessageTextEdit(QWidget *parent = nullptr);
     ~MessageTextEdit();
-    // 插入图片
-    void insertImage(const QString &imagePath);
     // 插入文件
     void insertFile(const QString &filePath);
     // 插入多个文件
@@ -42,11 +41,16 @@ public:
     // 清空所有内容
     void clearContent();
 
+
+signals:
+    void returnPressed();
+
+
 protected:
     // 重写粘贴事件
-    void keyPressEvent(QKeyEvent *event) override;
-    bool canInsertFromMimeData(const QMimeData *source) const override;
     void insertFromMimeData(const QMimeData *source) override;
+    void keyPressEvent(QKeyEvent *event) override;  // 重写键盘事件处理,回车发送
+
 
 private:
     // 文件项列表
@@ -54,16 +58,15 @@ private:
 
     // 创建图片缩略图
     QImage createThumbnail(const QImage &image);
+
     // 创建文件图标
-    QImage createFileIcon(const QString &fileName, const QString &filePath);
-    QString getFileExtension(const QString &fileName) const;
+    QImage createFileIcon(const QString &filePath);
     void paintFileIcon(QPainter *painter, const QRect &fileRect, const QString &extension) const;
 
 
     // 插入文件到文档
     void insertFileToDocument(const FileItem &fileItem);
-    // 处理剪贴板图片
-    void handleClipboardImage();
+
 
 
 };

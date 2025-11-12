@@ -71,4 +71,7 @@ struct User {
     bool isFemale() const { return gender == 2; }
 };
 
+Q_DECLARE_METATYPE(User)
+
+
 #endif // USER_H

@@ -59,4 +59,7 @@ struct GroupMember {
     QString getDisplayName() const { return nickname; }
 };
 
+Q_DECLARE_METATYPE(GroupMember)
+
+
 #endif // GROUPMEMBER_H

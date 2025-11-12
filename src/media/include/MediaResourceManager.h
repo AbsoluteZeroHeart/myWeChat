@@ -13,6 +13,7 @@
 #include <QFuture>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QFileInfo>
+#include <QPointer>
 
 enum class MediaType {
     Avatar,        // 头像
@@ -28,6 +29,14 @@ class MediaResourceManager : public QObject
 
 public:
     static MediaResourceManager* instance();
+
+    static void cleanup() {
+
+        if (MediaResourceManager* instance = MediaResourceManager::instance()) {
+            // 等待所有任务完成
+            instance->m_threadPool.waitForDone();
+        }
+    }
 
     // 获取资源 - 对于ImageThumb和VideoThumb，resourcePath是原路径，iconPath是图标路径
     QPixmap getMedia(const QString& resourcePath, const QSize& size = QSize(),
@@ -60,6 +69,9 @@ public:
     // 取消正在进行的加载任务
     void cancelLoading(const QString& cacheKey);
 
+    static QPixmap getWarningThumbnail(const QString& thumbnailPath,const QString &mediaType, const QSize &size = QSize(200,300));
+
+
 signals:
     void mediaLoaded(const QString& resourcePath, const QPixmap& media, MediaType type);
     void mediaLoadFailed(const QString& resourcePath, MediaType type);
@@ -87,6 +99,10 @@ private:
 
     // 创建默认缩略图
     static QPixmap createDefaultThumbnail(const QSize& size, MediaType type, const QString& text = QString());
+
+    static QPixmap createDefaultExpiredThumbnail(const QSize& size, const QString& mediaType);
+    static QPixmap createExpiredThumbnail(const QPixmap& baseThumbnail, const QString& mediaType, const QSize size = QSize(200,300));
+
     // 添加播放按钮到视频缩略图
     static void addPlayButton(QPixmap& pixmap);
     // 添加文字标识
@@ -113,6 +129,7 @@ public:
         m_cacheKey(cacheKey), m_manager(manager), m_iconPath(iconPath) {}
 
     void run() override {
+
         bool success = false;
         QPixmap result;
 

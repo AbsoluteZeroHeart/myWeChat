@@ -15,13 +15,15 @@ public:
     static const char* TABLE_MEDIA_CACHE;
 
     // 创建表的SQL语句
-    static QString getCreateTableCurrentUser();
+    static QString getCreateTableUser();
     static QString getCreateTableContacts();
     static QString getCreateTableGroupMembers();
     static QString getCreateTableGroups();
     static QString getCreateTableConversations();
     static QString getCreateTableMessages();
     static QString getCreateTableMediaCache();
+
+    static QStringList getCreateTriggers();
     static QString getCreateIndexes();
 };
 

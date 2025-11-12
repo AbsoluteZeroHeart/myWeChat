@@ -1,0 +1,239 @@
+#include "DatabaseInitializer.h"
+#include "DatabaseSchema.h"
+#include <QStandardPaths>
+#include <QDir>
+#include <QSqlQuery>
+#include <QSqlError>
+#include <QFileInfo>
+#include <QDebug>
+#include <QFile>
+
+std::atomic<bool> DatabaseInitializer::s_initialized{false};
+QMutex DatabaseInitializer::s_initMutex;
+
+DatabaseInitializer::DatabaseInitializer(QObject* parent)
+    : QObject(parent)
+{
+    m_dbPath = databasePath();
+    // 如果外部已经初始化过，标记也要同步
+    if (!s_initialized.load()) {
+        QMutexLocker lock(&s_initMutex);
+        if (!s_initialized.load()) {
+            if (databaseFileExists()) {
+                s_initialized.store(true);
+                qDebug() << "Database already exists and is valid, marked as initialized";
+            }
+        }
+    }
+}
+
+DatabaseInitializer::~DatabaseInitializer()
+{
+    if (QSqlDatabase::contains("main")) {
+        QSqlDatabase::database("main").close();
+        QSqlDatabase::removeDatabase("main");
+    }
+}
+
+bool DatabaseInitializer::ensureInitialized()
+{
+    if (s_initialized.load()) return true;
+
+    // 确保目录存在
+    QDir dir(QFileInfo(m_dbPath).absolutePath());
+    if (!dir.mkpath(".")) {
+        qCritical() << "Failed to create directory for DB:" << dir.absolutePath();
+        return false;
+    }
+
+    QMutexLocker globalLock(&s_initMutex);
+    if (s_initialized.load()) return true;
+
+    // 检查数据库文件是否已存在（用于决定失败时是否删除）
+    bool dbFileExisted = databaseFileExists();
+
+    // 如果连接名已存在，先清理
+    if (QSqlDatabase::contains("main")) {
+        QSqlDatabase::removeDatabase("main");
+    }
+
+    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "main");
+    db.setDatabaseName(m_dbPath);
+    if (!db.open()) {
+        qCritical() << "Failed to open main DB:" << db.lastError().text();
+        QSqlDatabase::removeDatabase("main");
+
+        // 如果数据库文件是本次运行时创建的，删除它
+        if (!dbFileExisted) {
+            removeDatabaseFile();
+        }
+        return false;
+    }
+
+    applyPragmas(db);
+
+    bool ok = createTables(db);
+
+    db.close();
+    QSqlDatabase::removeDatabase("main");
+
+    if (!ok) {
+        qCritical() << "Database initialization failed";
+        // 初始化失败时删除数据库文件
+        removeDatabaseFile();
+        return false;
+    }
+
+    s_initialized.store(true);
+    qDebug() << "Database initialized successfully at" << m_dbPath;
+    return true;
+}
+
+QString DatabaseInitializer::databasePath()
+{
+    QString loc = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    QDir dir(loc);
+    dir.mkpath(".");
+    return dir.absoluteFilePath("wechat_clone.db");
+}
+
+bool DatabaseInitializer::databaseFileExists() const
+{
+    QFileInfo fi(m_dbPath);
+    return fi.exists() && fi.size() > 0;
+}
+
+void DatabaseInitializer::applyPragmas(QSqlDatabase &db)
+{
+    const QStringList pragmas = {
+        "PRAGMA foreign_keys = ON",
+        "PRAGMA journal_mode = WAL",
+        "PRAGMA synchronous = NORMAL",
+        "PRAGMA cache_size = -64000",
+        "PRAGMA temp_store = MEMORY"
+    };
+    for (const QString &p : pragmas) {
+        QSqlQuery q(db);
+        if (!q.exec(p))
+            qWarning() << "Failed to set pragma" << p << q.lastError().text();
+    }
+}
+
+bool DatabaseInitializer::createTables(QSqlDatabase &db)
+{
+    // 开始事务
+    if (!db.transaction()) {
+        qCritical() << "Failed to start transaction for creating tables:" << db.lastError().text();
+        return false;
+    }
+
+    QSqlQuery q(db);
+
+    // 1. 先创建所有表
+    const QStringList tables = {
+        DatabaseSchema::getCreateTableUser(),
+        DatabaseSchema::getCreateTableContacts(),
+        DatabaseSchema::getCreateTableGroups(),
+        DatabaseSchema::getCreateTableGroupMembers(),
+        DatabaseSchema::getCreateTableConversations(),
+        DatabaseSchema::getCreateTableMessages(),
+        DatabaseSchema::getCreateTableMediaCache()
+    };
+
+    for (const QString &sql : tables) {
+        if (!q.exec(sql)) {
+            db.rollback();
+            qCritical() << "Create table failed:" << q.lastError().text() << "SQL:" << sql;
+            return false;
+        }
+    }
+
+    // 2. 提交表创建事务
+    if (!db.commit()) {
+        qCritical() << "Commit failed after creating tables:" << db.lastError().text();
+        return false;
+    }
+
+    // 3. 开始新的事务创建索引和触发器
+    if (!db.transaction()) {
+        qCritical() << "Failed to start transaction for indexes and triggers:" << db.lastError().text();
+        return false;
+    }
+
+    // 创建索引
+    const QStringList indexes = DatabaseSchema::getCreateIndexes().split(';', Qt::SkipEmptyParts);
+    for (const QString& sql : indexes) {
+        const QString trimmedSql = sql.trimmed();
+        if (!trimmedSql.isEmpty()) {
+            if (!q.exec(trimmedSql)) {
+                qWarning() << "Create index failed:" << q.lastError().text() << "SQL:" << trimmedSql;
+                // 索引创建失败不中断，继续执行
+            }
+        }
+    }
+
+    // 创建触发器
+    const QStringList triggers = DatabaseSchema::getCreateTriggers();
+    for (const QString& sql : triggers) {
+        const QString trimmedSql = sql.trimmed();
+        if (!trimmedSql.isEmpty()) {
+            if (!q.exec(trimmedSql)) {
+                qWarning() << "Create trigger failed:" << q.lastError().text() << "SQL:" << trimmedSql;
+                // 触发器创建失败不中断，继续执行
+            }
+        }
+    }
+
+    // 提交索引和触发器事务
+    if (!db.commit()) {
+        qCritical() << "Commit failed for indexes and triggers:" << db.lastError().text();
+        return false;
+    }
+
+    return true;
+}
+
+bool DatabaseInitializer::removeDatabaseFile()
+{
+    if (m_dbPath.isEmpty()) {
+        return false;
+    }
+
+    // 关闭所有数据库连接
+    if (QSqlDatabase::contains("main")) {
+        QSqlDatabase::database("main").close();
+        QSqlDatabase::removeDatabase("main");
+    }
+
+    QFile dbFile(m_dbPath);
+    if (dbFile.exists()) {
+        bool removed = dbFile.remove();
+        if (removed) {
+            qDebug() << "Removed corrupted database file:" << m_dbPath;
+
+            // 同时删除相关的 WAL 文件
+            QFile::remove(m_dbPath + "-wal");
+            QFile::remove(m_dbPath + "-shm");
+        } else {
+            qWarning() << "Failed to remove database file:" << m_dbPath;
+        }
+        return removed;
+    }
+
+    return true; // 文件不存在也算删除成功
+}
+
+void DatabaseInitializer::resetDatabase()
+{
+    QMutexLocker lock(&s_initMutex);
+    s_initialized.store(false);
+
+    // 关闭所有数据库连接
+    if (QSqlDatabase::contains("main")) {
+        QSqlDatabase::database("main").close();
+        QSqlDatabase::removeDatabase("main");
+    }
+
+    removeDatabaseFile();
+    qDebug() << "Database reset completed";
+}

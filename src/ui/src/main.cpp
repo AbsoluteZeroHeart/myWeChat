@@ -1,12 +1,76 @@
-#include "MainApplication.h"
+#include "AppInitialize.h"
+#include "DatabaseInitializationController.h"
+#include "WeChatWidget.h"
+#include <QApplication>
+#include "DatabaseManager.h"
+#include "AppController.h"
+#include "GroupMember.h"
+#include "Group.h"
+#include "MediaCache.h"
+#include "MediaItem.h"
+#include "Message.h"
+#include "User.h"
+#include "Contact.h"
+#include "Conversation.h"
+#include "MediaResourceManager.h"
+#include <QMessageBox>
+
 
 int main(int argc, char *argv[])
 {
-    MainApplication app(argc, argv);
-    
-    if (!app.initialize()) {
-        return -1;
-    }
-    
-    return app.exec();
+    QApplication app(argc, argv);
+
+    // 注册元类型
+    qRegisterMetaType<Conversation>("Conversation");
+    qRegisterMetaType<QList<Conversation>>("QList<Conversation>");
+
+    qRegisterMetaType<Contact>("Contact");
+    qRegisterMetaType<QList<Contact>>("QList<Contact>");
+
+    qRegisterMetaType<GroupMember>("GroupMember");
+    qRegisterMetaType<QList<GroupMember>>("QList<GroupMember>");
+
+    qRegisterMetaType<Group>("Group");
+    qRegisterMetaType<QList<Group>>("QList<Group>");
+
+    qRegisterMetaType<MediaCache>("MediaCache");
+    qRegisterMetaType<QList<MediaCache>>("QList<MediaCache>");
+
+    qRegisterMetaType<Message>("Message");
+    qRegisterMetaType<QList<Message>>("QList<Message>");
+
+    qRegisterMetaType<MediaItem>("MediaItem");
+    qRegisterMetaType<QList<MediaItem>>("QList<MediaItem>");
+
+    qRegisterMetaType<User>("User");
+    qRegisterMetaType<QList<User>>("QList<User>");
+
+    DatabaseInitializationController* initController = new DatabaseInitializationController();
+    AppInitialize* appInit = new AppInitialize(initController);
+
+    DatabaseManager* databaseManager;
+    AppController* appController;
+    WeChatWidget* wechatWidget;
+
+    QObject::connect(appInit, &AppInitialize::isInited, &app, [&](){
+        databaseManager = new DatabaseManager();
+        databaseManager->start();
+        appController = new AppController(databaseManager);
+        wechatWidget = new WeChatWidget(appController);
+        wechatWidget->show();
+    });
+
+    appInit->initialize();
+
+    int result = app.exec();
+    delete wechatWidget;
+    delete appController;
+    delete databaseManager;
+    delete appInit;
+    delete initController;
+
+    // 显式清理MediaResourceManager,防止QGuiApplication 销毁后还在处理 QPixmap，造成崩溃
+    MediaResourceManager::cleanup();
+
+    return result;
 }

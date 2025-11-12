@@ -8,6 +8,7 @@
 #include <QMenu>
 #include <QAction>
 #include "CustomListView.h"
+#include "Conversation.h"
 
 class ChatListView: public CustomListView
 {
@@ -18,6 +19,10 @@ public:
     explicit ChatListView(QWidget *parent = nullptr);
     ~ChatListView();
 
+    // 获取当前选中的会话
+    Conversation getSelectedConversation() const;
+
+
 signals:
     // 会话列表菜单信号
     void conversationToggleTop(qint64 conversationId);
@@ -26,12 +31,19 @@ signals:
     void conversationOpenInWindow(qint64 conversationId);
     void conversationDelete(qint64 conversationId);
 
+    // 选中会话
+    void conversationChanged(const Conversation &conversation);
+
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
+
+
+
 
 private:
     void createConversationContextMenu();
     void showDeleteConfirmationDialog();
+    Conversation getConversationFromIndex(const QModelIndex &index)const;
 
     // 会话列表菜单
     QMenu *m_conversationMenu;
@@ -40,8 +52,8 @@ private:
     QAction *m_toggleMuteAction;
     QAction *m_openInWindowAction;
     QAction *m_deleteAction;
-    qint64 m_currentConversationId;
 
+    qint64 m_currentConversationId;
 };
 
 #endif //CUSTOMLISTVIEW_H

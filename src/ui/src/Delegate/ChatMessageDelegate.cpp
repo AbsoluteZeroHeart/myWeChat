@@ -7,6 +7,7 @@
 #include <QPainterPath>
 #include <QAbstractItemView>
 #include "ChatMessagesModel.h"
+#include "ChatMessageListView.h"
 
 ChatMessageDelegate::ChatMessageDelegate(QObject *parent)
     : QStyledItemDelegate(parent)
@@ -403,9 +404,13 @@ void ChatMessageDelegate::paintFileMessage(QPainter *painter, const QStyleOption
                                fileBubbleWidth, fileBubbleHeight);
     }
 
+    // 检查文件是否存在
+    bool fileExists = QFileInfo::exists(message.filePath);
+
     // 绘制文件气泡背景
     painter->setPen(Qt::NoPen);
     painter->setBrush(Qt::white);
+
     painter->drawRoundedRect(fileBubbleRect, 5, 5);
 
     // 绘制气泡小三角
@@ -427,11 +432,12 @@ void ChatMessageDelegate::paintFileMessage(QPainter *painter, const QStyleOption
                    iconWidth, iconHeight);
 
     // 绘制文件类型图标
-    QString fileName = QFileInfo(message.filePath).fileName();
+    QFileInfo fileInfo(message.filePath);
+    QString fileName = fileInfo.fileName();
     if (fileName.isEmpty()) {
         fileName = message.content;
     }
-    QString fileExtension = getFileExtension(fileName).toLower();
+    QString fileExtension = fileInfo.suffix().toLower();
     paintFileIcon(painter, iconRect, fileExtension);
 
     // 文本区域
@@ -483,6 +489,36 @@ void ChatMessageDelegate::paintFileMessage(QPainter *painter, const QStyleOption
     painter->drawText(QRect(textRect.left(), fileBubbleRect.bottom() - 20,
                             textRect.width(), 15),
                       Qt::AlignLeft | Qt::AlignVCenter, "微信电脑版");
+
+    // 如果文件不存在，绘制暗色遮罩和提示文字
+    if (!fileExists) {
+        painter->save();
+
+        // 绘制暗色遮罩（半透明黑色）
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QColor(0, 0, 0, 128)); // 半透明黑色
+        painter->drawRoundedRect(fileBubbleRect, 5, 5);
+
+        // 绘制提示文字
+        QFont warningFont = option.font;
+        warningFont.setPointSizeF(9);
+        warningFont.setFamily("微软雅黑");
+        warningFont.setBold(true);
+        painter->setFont(warningFont);
+        painter->setPen(Qt::white);
+
+        QString warningText = "文件已过期或删除";
+        QFontMetrics warningMetrics(warningFont);
+        int warningWidth = warningMetrics.horizontalAdvance(warningText);
+        QRect warningRect(fileBubbleRect.center().x() - warningWidth / 2,
+                          fileBubbleRect.center().y() - warningMetrics.height() / 2,
+                          warningWidth, warningMetrics.height());
+
+        painter->drawText(warningRect, Qt::AlignCenter, warningText);
+
+        // 恢复 painter 状态
+        painter->restore();
+    }
 
     // 绘制时间戳
     QRect timeRect = QRect(fileBubbleRect.left(), fileBubbleRect.bottom() + margin,
@@ -582,7 +618,6 @@ void ChatMessageDelegate::paintAvatar(QPainter *painter, const QRect &avatarRect
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    MediaResourceManager* mediaManager = MediaResourceManager::instance();
     QPixmap avatarPixmap = mediaManager->getMedia(message.avatar,
                                                  avatarRect.size(), 
                                                  MediaType::Avatar, 5);
@@ -670,7 +705,7 @@ void ChatMessageDelegate::paintFileIcon(QPainter *painter, const QRect &fileRect
 
     // 创建缺角矩形路径（右上角缺失）
     QPainterPath filePath;
-    filePath.moveTo(fileRect.topLeft()); // A点：左上角
+    filePath.moveTo(fileRect.topLeft());    // A点：左上角
     filePath.lineTo(fileRect.topRight().x() - foldSize, fileRect.top()); // B点：右上角向左偏移
     filePath.lineTo(fileRect.topRight().x(), fileRect.top() + foldSize); // C点：右上角向下偏移
     filePath.lineTo(fileRect.bottomRight()); // D点：右下角
@@ -848,14 +883,6 @@ QSize ChatMessageDelegate::calculateTextSize(const QString &text, const QFont &f
     return textRect.size();
 }
 
-QString ChatMessageDelegate::getFileExtension(const QString &fileName) const
-{
-    int dotIndex = fileName.lastIndexOf('.');
-    if (dotIndex != -1 && dotIndex < fileName.length() - 1) {
-        return fileName.mid(dotIndex + 1);
-    }
-    return "";
-}
 
 QRect ChatMessageDelegate::getClickableRect(const QStyleOptionViewItem &option,
                                             const Message &message, const bool &isOwn) const
@@ -945,7 +972,7 @@ QRect ChatMessageDelegate::getClickableRect(const QStyleOptionViewItem &option,
 
 void ChatMessageDelegate::onMediaLoaded(const QString& resourcePath, const QPixmap& media, MediaType type)
 {
-    if(QAbstractItemView* view = qobject_cast<QAbstractItemView*>(parent())) {
+    if(ChatMessageListView* view = qobject_cast<ChatMessageListView*>(parent())) {
 
         view->viewport()->update();
         QAbstractItemModel* model = view->model();

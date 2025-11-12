@@ -466,6 +466,5 @@ void VideoPlayer::stop()
 {
     if (m_player) {
         m_player->stop();
-        m_player->setSource(QUrl());
     }
 }

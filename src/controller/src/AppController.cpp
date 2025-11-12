@@ -1,12 +1,12 @@
 #include "AppController.h"
 
-AppController::AppController(QObject *parent)
+AppController::AppController(DatabaseManager *databaseManager, QObject *parent)
     : QObject(parent)
 {
-    m_databaseInitializationController = new DatabaseInitializationController(this);
-    m_userController = new UserController(this);
-    m_conversationController = new ConversationController(this);
-    m_messageController = new MessageController(this);
+    m_userController = new UserController(databaseManager, this);
+    m_conversationController = new ConversationController(databaseManager, this);
+    m_messageController = new MessageController(databaseManager, this);
+    m_contactController = new ContactController(databaseManager, this);
 }
 
 AppController::~AppController() = default;

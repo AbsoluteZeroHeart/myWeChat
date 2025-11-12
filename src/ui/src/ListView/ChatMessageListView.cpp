@@ -12,6 +12,9 @@ ChatMessageListView::ChatMessageListView(QWidget *parent)
     : CustomListView(parent)
 {
     createMessageContextMenu();
+    setResizeMode(QListView::Adjust);
+    setSelectionMode(QAbstractItemView::NoSelection);
+    setUniformItemSizes(false);
 }
 
 ChatMessageListView::~ChatMessageListView()

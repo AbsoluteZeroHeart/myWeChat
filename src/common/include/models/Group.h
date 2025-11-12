@@ -117,4 +117,7 @@ struct Group {
     }
 };
 
+Q_DECLARE_METATYPE(Group)
+
+
 #endif // GROUP_H

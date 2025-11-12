@@ -13,6 +13,9 @@ ChatListView::ChatListView(QWidget *parent)
     : CustomListView(parent), m_currentConversationId(0)
 {
     createConversationContextMenu();
+
+    setUniformItemSizes(true);
+    setSelectionMode(QAbstractItemView::SingleSelection); // 单选
 }
 
 ChatListView::~ChatListView()
@@ -194,6 +197,43 @@ void ChatListView::contextMenuEvent(QContextMenuEvent *event)
         m_conversationMenu->exec(event->globalPos());
     }
 }
+
+
+Conversation ChatListView::getConversationFromIndex(const QModelIndex &index) const
+{
+    Conversation conversationInfo;
+
+    if (!index.isValid()) {
+        return conversationInfo;
+    }
+
+    conversationInfo.conversationId = index.data(ConversationIdRole).toLongLong();
+    conversationInfo.groupId = index.data(GroupIdRole).toLongLong();
+    conversationInfo.userId = index.data(UserIdRole).toLongLong();
+    conversationInfo.type = index.data(TypeRole).toInt();
+    conversationInfo.title = index.data(TitleRole).toString();
+    conversationInfo.avatar = index.data(AvatarRole).toString();
+    conversationInfo.avatarLocalPath = index.data(AvatarLocalPathRole).toString();
+    conversationInfo.lastMessageContent = index.data(LastMessageContentRole).toString();
+    conversationInfo.lastMessageTime = index.data(LastMessageTimeRole).toLongLong();
+    conversationInfo.unreadCount = index.data(UnreadCountRole).toInt();
+    conversationInfo.isTop = index.data(IsTopRole).toBool();
+
+    return conversationInfo;
+}
+
+
+Conversation ChatListView::getSelectedConversation() const
+{
+    QModelIndexList selectedIndexes = selectionModel()->selectedIndexes();
+    if (!selectedIndexes.isEmpty()) {
+        return getConversationFromIndex(selectedIndexes.first());
+    }
+    return Conversation();
+}
+
+
+
 
 
 

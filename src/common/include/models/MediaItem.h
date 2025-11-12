@@ -13,9 +13,6 @@ struct MediaItem {
     qint64 messageId;         // 消息ID
     qint64 timestamp;         // 时间戳
 
-    // QPixmap thumbnail;        // 加载的缩略图
-    // bool thumbnailLoaded;     // 缩略图是否已加载
-
     MediaItem(const QString& thumbPath = "",
               const QString& sourcePath = "",
               const QString& type = "image",
@@ -51,8 +48,6 @@ struct MediaItem {
             media.mediaType = "unknown";
         }
 
-        // media.thumbnailLoaded = false;
-
         return media;
     }
 
@@ -61,22 +56,9 @@ struct MediaItem {
         return !sourceMediaPath.isEmpty() && mediaType != "unknown";
     }
 
-    // 加载缩略图
-    // bool loadThumbnail() {
-    //     // if (thumbnailLoaded) {
-    //     //     return true;
-    //     // }
-
-    //     if (!thumbnailPath.isEmpty()) {
-    //         thumbnail = QPixmap(thumbnailPath);
-    //     } else if (!sourceMediaPath.isEmpty() && mediaType == "image") {
-
-    //         thumbnail = QPixmap(sourceMediaPath);
-    //     }
-
-    //     thumbnailLoaded = !thumbnail.isNull();
-    //     return thumbnailLoaded;
-    // }
 };
+
+Q_DECLARE_METATYPE(MediaItem)
+
 
 #endif // MEDIAITEM_H

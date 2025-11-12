@@ -5,7 +5,8 @@
 #include <QFileInfo>
 #include <QApplication>
 #include <QFontMetrics>
-#include "ThumbnailManager.h"
+#include <QIcon>
+#include <QStyle>
 
 MediaResourceManager* MediaResourceManager::instance()
 {
@@ -17,7 +18,9 @@ MediaResourceManager::MediaResourceManager(QObject* parent)
     : QObject(parent)
     , m_cache(200*1024)
 {
-    m_threadPool.setMaxThreadCount(10);
+    int idealThreadCount = QThread::idealThreadCount();
+    m_threadPool.setMaxThreadCount(qMax(2, idealThreadCount));
+
 
     QTimer* cleanupTimer = new QTimer(this);
     connect(cleanupTimer, &QTimer::timeout, this, [this]() {
@@ -114,7 +117,7 @@ QPixmap MediaResourceManager::processThumbnail(const QString& resourcePath, cons
             return processMedia(iconImage, size, type, 0, originalExists);
         }
     } else {
-        return ThumbnailManager::getWarningThumbnail(iconPath,
+        return getWarningThumbnail(iconPath,
                                                      type == MediaType::ImageThumb ? "image" : "video");
     }
 }
@@ -345,4 +348,92 @@ void MediaResourceManager::cleanupOldResources(qint64 maxAgeMs)
     for(const QString& key : keysToRemove) {
         m_cache.remove(key);
     }
+}
+
+QPixmap MediaResourceManager::getWarningThumbnail(const QString& thumbnailPath,const QString &mediaType, const QSize &size)
+{
+    if(!QFileInfo::exists(thumbnailPath)){
+        return createDefaultExpiredThumbnail({100,100}, mediaType);
+    }
+    return  createExpiredThumbnail(QPixmap(thumbnailPath), mediaType, size);
+}
+
+QPixmap MediaResourceManager::createDefaultExpiredThumbnail(const QSize& size, const QString& mediaType)
+{
+    QPixmap resultPixmap(size);
+    resultPixmap.fill(QColor(80, 80, 80));
+
+    QPainter painter(&resultPixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    // 绘制半透明遮罩
+    painter.fillRect(resultPixmap.rect(), QColor(0, 0, 0, 160));
+
+    // 计算图标大小和位置
+    int iconSize = qMin(size.width(), size.height()) / 3;
+    QRect iconRect((size.width() - iconSize) / 2,
+                   (size.height() - iconSize) / 3,
+                   iconSize, iconSize);
+
+    // 绘制警告图标
+    QStyle* style = QApplication::style();
+    QIcon warningIcon = style->standardIcon(QStyle::SP_MessageBoxWarning);
+    warningIcon.paint(&painter, iconRect);
+
+    // 绘制文字
+    QFont font = painter.font();
+    font.setPointSize(qMax(10, iconSize / 5));
+    font.setBold(true);
+    painter.setFont(font);
+    painter.setPen(Qt::red);
+
+    QString text = QString("%1已过期或被清除").arg(mediaType=="video"? "视频":"图片");
+    QRect textRect(0, iconRect.bottom() + 10,
+                   size.width(), iconSize / 2);
+
+    painter.drawText(textRect, Qt::AlignCenter | Qt::TextWordWrap, text);
+    painter.end();
+
+    return resultPixmap;
+}
+
+QPixmap MediaResourceManager::createExpiredThumbnail(const QPixmap& baseThumbnail, const QString& mediaType, const QSize size)
+{
+    if(baseThumbnail.isNull())return QPixmap();
+    QPixmap resultPixmap = baseThumbnail.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+
+    QPainter painter(&resultPixmap);
+
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+
+    // 绘制半透明遮罩
+    painter.fillRect(resultPixmap.rect(), QColor(0, 0, 0, 160));
+
+    // 计算图标大小和位置
+    int iconSize = qMin(resultPixmap.width(), resultPixmap.height()) / 3;
+    QRect iconRect((resultPixmap.width() - iconSize) / 2,
+                   (resultPixmap.height() - iconSize) / 3,
+                   iconSize, iconSize);
+
+    // 绘制警告图标
+    QStyle* style = QApplication::style();
+    QIcon warningIcon = style->standardIcon(QStyle::SP_MessageBoxWarning);
+    warningIcon.paint(&painter, iconRect);
+
+    // 绘制文字
+    QFont font = painter.font();
+    font.setPointSize(qMax(10, iconSize / 5));
+    font.setBold(true);
+    painter.setFont(font);
+    painter.setPen(Qt::white);
+
+    QString text = QString("%1已过期或被清除").arg(mediaType=="video"? "视频":"图片");
+    QRect textRect(0, iconRect.bottom() + 10,
+                   resultPixmap.width(), iconSize / 2);
+
+    painter.drawText(textRect, Qt::AlignCenter | Qt::TextWordWrap, text);
+    painter.end();
+
+    return resultPixmap;
 }

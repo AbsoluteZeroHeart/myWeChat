@@ -96,32 +96,31 @@ struct Message {
     bool hasThumbnail() const { return !thumbnailPath.isEmpty(); }
 
     QString formattedFileSize() const {
-        // if (fileSize == 0) return "0 B";
-        
-        // static const QStringList units = {"B", "KB", "MB", "GB"};
-        // double size = fileSize;
-        // int unitIndex = 0;
-        
-        // while (size >= 1024 && unitIndex < units.size() - 1) {
-        //     size /= 1024;
-        //     unitIndex++;
-        // }
-        
-        // return QString("%1 %2").arg(size, 0, 'f', 1).arg(units[unitIndex]);
         return formatFileSize(fileSize);
     }
 
     QString formattedDuration() const {
-        if (duration <= 0) return "0:00";
-        
-        int minutes = duration / 60;
-        int seconds = duration % 60;
-        return QString("%1:%2").arg(minutes).arg(seconds, 2, 10, QChar('0'));
+        if (duration <= 0) return "0:00:00";
+
+        // 1. 拆分时间单位：总秒数 → 时、分、秒
+        int hours = duration / 3600;
+        int remainingSeconds = duration % 3600;
+        int minutes = remainingSeconds / 60;
+        int seconds = remainingSeconds % 60;
+
+        return QString("%1:%2:%3")
+            .arg(hours)
+            .arg(minutes, 2, 10, QChar('0'))
+            .arg(seconds, 2, 10, QChar('0'));
     }
 
     bool isOwn(qint64 currentUserId) const {
         return senderId == currentUserId;
     }
+
 };
+
+Q_DECLARE_METATYPE(Message)
+
 
 #endif // MESSAGE_H

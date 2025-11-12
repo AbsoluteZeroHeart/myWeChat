@@ -113,6 +113,7 @@ enum ConversationRole {
     TargetIdRole
 };
 
+Q_DECLARE_METATYPE(Conversation)
 
 
 #endif // CONVERSATION_H

@@ -22,10 +22,11 @@ set(PROJECT_SOURCES
     src/dialogBox/AddDialog.ui
     src/dialogBox/MoreDialog.ui
     src/dialogBox/FloatingDialog.ui
-    src/dialogBox/PersonalInfoDialog.ui
+    src/dialogBox/CurrentUserInfoDialog.ui
     src/media/MediaDialog.ui
     src/LoginAndRegisterDialog.ui
     src/WeChatWidget.ui
+    src/dialogBox/UserInfoWidget.ui
 
 )
  

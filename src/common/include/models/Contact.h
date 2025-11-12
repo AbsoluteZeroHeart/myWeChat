@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonArray>
+#include "User.h"
 
 struct Contact {
     qint64 userId = 0;
@@ -19,7 +20,8 @@ struct Contact {
     bool isStarred = false;
     bool isBlocked = false;
     qint64 addTime = 0;
-    qint64 lastContactTime = 0;
+
+    User user=User();
 
     Contact() = default;
     
@@ -43,7 +45,6 @@ struct Contact {
         isStarred = query.value("is_starred").toBool();
         isBlocked = query.value("is_blocked").toBool();
         addTime = query.value("add_time").toLongLong();
-        lastContactTime = query.value("last_contact_time").toLongLong();
     }
 
     QJsonObject toJson() const {
@@ -58,7 +59,6 @@ struct Contact {
             {"is_starred", isStarred},
             {"is_blocked", isBlocked},
             {"add_time", addTime},
-            {"last_contact_time", lastContactTime}
         };
     }
 
@@ -74,7 +74,6 @@ struct Contact {
         contact.isStarred = json["is_starred"].toBool();
         contact.isBlocked = json["is_blocked"].toBool();
         contact.addTime = json["add_time"].toVariant().toLongLong();
-        contact.lastContactTime = json["last_contact_time"].toVariant().toLongLong();
         return contact;
     }
 
@@ -107,10 +106,6 @@ struct Contact {
         return tagList.join(", ");
     }
 
-    void updateLastContactTime() {
-        lastContactTime = QDateTime::currentSecsSinceEpoch();
-    }
-
     void addTag(const QString& tag) {
         if (!tags.contains(tag)) {
             tags.append(tag);
@@ -127,5 +122,8 @@ struct Contact {
         tags = newTags;
     }
 };
+
+Q_DECLARE_METATYPE(Contact)
+
 
 #endif // CONTACT_H

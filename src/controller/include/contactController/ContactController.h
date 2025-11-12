@@ -2,52 +2,81 @@
 #define CONTACTCONTROLLER_H
 
 #include <QObject>
-#include <QJsonObject>
-#include <QJsonArray>
+#include <QMap>
+#include "DatabaseManager.h"
 #include "Contact.h"
+#include "ContactTreeModel.h"
 
-class DataAccessContext;
 
 class ContactController : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit ContactController(QObject *parent = nullptr);
+    explicit ContactController(DatabaseManager* dbManager, QObject* parent = nullptr);
     ~ContactController();
+    ContactTreeModel *contactTreeModel() const{return m_contactTreeModel;}
 
-    // 联系人管理
-    bool addContact(const Contact& contact);
-    bool updateContact(const Contact& contact);
-    bool deleteContact(qint64 userId);
-    Contact getContact(qint64 userId);
-    QList<Contact> getAllContacts();
-    bool isContact(qint64 userId);
-    QList<Contact> searchContacts(const QString& keyword);
-    
-    // 联系人状态管理
-    bool setContactStarred(qint64 userId, bool starred);
-    bool setContactBlocked(qint64 userId, bool blocked);
-    QList<Contact> getStarredContacts();
-    
-    // 便捷方法
-    QString getRemarkName(qint64 userId);
-    bool updateRemarkName(qint64 userId, const QString& remarkName);
-    bool updateDescription(qint64 userId, const QString& description);
-    bool addTag(qint64 userId, const QString& tag);
-    bool removeTag(qint64 userId, const QString& tag);
-    bool updateLastContactTime(qint64 userId);
+    // 公共接口方法
+    void addContact(int reqId, const Contact& contact);
+    void updateContact(int reqId, const Contact& contact);
+    void deleteContact(int reqId, qint64 userId);
+
+    void getContact(int reqId, qint64 userId);
+    void getAllContacts(int reqId);
+    void searchContacts(int reqId, const QString& keyword);
+    void getStarredContacts(int reqId);
+
+    void setContactStarred(int reqId, qint64 userId, bool starred);
+    void setContactBlocked(int reqId, qint64 userId, bool blocked);
 
 signals:
-    void contactAdded(const Contact& contact);
-    void contactUpdated(const Contact& contact);
-    void contactDeleted(qint64 userId);
-    void contactStarredChanged(qint64 userId, bool starred);
-    void contactBlockedChanged(qint64 userId, bool blocked);
+    // 异步操作请求信号
+    void addContactRequested(int reqId, const Contact& contact);
+    void updateContactRequested(int reqId, const Contact& contact);
+    void deleteContactRequested(int reqId, qint64 userId);
+    void getContactRequested(int reqId, qint64 userId);
+    void getAllContactsRequested(int reqId);
+    void searchContactsRequested(int reqId, const QString& keyword);
+    void setContactStarredRequested(int reqId, qint64 userId, bool starred);
+    void setContactBlockedRequested(int reqId, qint64 userId, bool blocked);
+    void getStarredContactsRequested(int reqId);
+
+    // 操作结果信号
+    void contactAdded(int reqId, bool success, const QString& error);
+    void contactUpdated(int reqId, bool success, const QString& error);
+    void contactDeleted(int reqId, bool success, const QString& error);
+    void contactLoaded(int reqId, const Contact& contact);
+    void allContactsLoaded(int reqId, const QList<Contact>& contacts);
+    void searchContactsResult(int reqId, const QList<Contact>& contacts);
+    void contactStarredChanged(int reqId, bool success, const QString& error);
+    void contactBlockedChanged(int reqId, bool success, const QString& error);
+    void starredContactsLoaded(int reqId, const QList<Contact>& contacts);
     void contactsChanged();
 
+private slots:
+    // 数据库操作结果处理槽函数
+    void onContactSaved(int reqId, bool success, const QString& error);
+    void onContactUpdated(int reqId, bool success, const QString& error);
+    void onContactDeleted(int reqId, bool success, const QString& error);
+    void onContactLoaded(int reqId, const Contact& contact);
+    void onAllContactsLoaded(int reqId, const QList<Contact>& contacts);
+    void onSearchContactsResult(int reqId, const QList<Contact>& contacts);
+    void onContactStarredSet(int reqId, bool success);
+    void onContactBlockedSet(int reqId, bool success);
+    void onStarredContactsLoaded(int reqId, const QList<Contact>& contacts);
+
 private:
-    DataAccessContext* m_dataAccessContext;
+    void connectSignals();
+    void disconnectSignals();
+    void connectAsyncSignals();
+
+private:
+    DatabaseManager* m_dbManager;
+    ContactTable* m_contactTable;
+    QMap<int, QPair<qint64, QString>> m_pendingUpdates;
+    ContactTreeModel *m_contactTreeModel;
+
 };
 
 #endif // CONTACTCONTROLLER_H

@@ -3,7 +3,7 @@
 
 #include <QObject>
 #include <QTimer>
-class DatabaseManager;
+class DatabaseInitializer;
 
 class DatabaseInitializationController : public QObject
 {
@@ -39,7 +39,7 @@ private:
 private:
     bool m_initializationInProgress;
     int m_currentProgress;
-    DatabaseManager *dbManager;
+    DatabaseInitializer *databaseInitializer;
 };
 
 #endif // DATABASEINITIALIZATIONCONTROLLER_H

@@ -18,7 +18,6 @@
 #include "ThumbnailDelegate.h"
 #include "ThumbnailPreviewModel.h"
 #include "ThumbnailListView.h"
-#include "ThumbnailManager.h"
 
 MediaDialog::MediaDialog(QWidget *parent)
     : QDialog(parent)
@@ -422,6 +421,7 @@ void MediaDialog::playMedia(const QString &path, const QString &mediaTytpe)
         m_videoPlayer->loadVideo(path);
         mediaStackedWidget->setCurrentWidget(m_videoPlayer);
     }else if (mediaTytpe=="image") {
+        m_videoPlayer->stop();
         m_graphicsView->loadImage(path);
         mediaStackedWidget->setCurrentWidget(m_graphicsView);
     }
@@ -494,7 +494,7 @@ void MediaDialog::on_thumbnailPreviewButton_clicked()
 void MediaDialog::onCurrentChanged(const QModelIndex &current, const QModelIndex &previous)
 {
     if(current.isValid()){
-        m_videoPlayer->stop();
+
         QString thumbPath = current.data(ThumbnailPreviewModel::ThumbnailPathRole).toString();
         QString sourcePath = current.data(ThumbnailPreviewModel::SourceMediaPathRole).toString();
         QString mediaType = current.data(ThumbnailPreviewModel::MediaTypeRole).toString();
@@ -503,7 +503,7 @@ void MediaDialog::onCurrentChanged(const QModelIndex &current, const QModelIndex
         if(fileInfo.exists() && fileInfo.isFile()){
             playMedia(sourcePath, mediaType);
         }else{
-            QPixmap warningPix = ThumbnailManager::getWarningThumbnail(thumbPath, mediaType);
+            QPixmap warningPix = MediaResourceManager::getWarningThumbnail(thumbPath, mediaType);
             mediaStackedWidget->setCurrentWidget(m_graphicsView);
             m_graphicsView->loadImage(warningPix);
         }

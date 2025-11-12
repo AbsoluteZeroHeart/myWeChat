@@ -1,4 +1,5 @@
 #include "DatabaseSchema.h"
+#include <QStringList>
 
 // 数据库表名常量定义
 const char* DatabaseSchema::TABLE_CURRENT_USER = "users";
@@ -10,10 +11,9 @@ const char* DatabaseSchema::TABLE_MESSAGES = "messages";
 const char* DatabaseSchema::TABLE_MEDIA_CACHE = "media_cache";
 
 /**
- * @brief 获取创建"当前用户表"的SQL语句
- * 存储当前登录用户的核心信息，user_id使用INTEGER支持雪花算法
+ * @brief 获取创建"用户表"的SQL语句
  */
-QString DatabaseSchema::getCreateTableCurrentUser() {
+QString DatabaseSchema::getCreateTableUser() {
     return R"(
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER NOT NULL PRIMARY KEY,    -- 用户ID
@@ -31,7 +31,6 @@ QString DatabaseSchema::getCreateTableCurrentUser() {
 
 /**
  * @brief 获取创建"联系人表"的SQL语句
- * 联系人ID（user_id）使用INTEGER，关联用户表的雪花ID
  */
 QString DatabaseSchema::getCreateTableContacts() {
     return R"(
@@ -55,7 +54,6 @@ QString DatabaseSchema::getCreateTableContacts() {
 
 /**
  * @brief 获取创建"群成员表"的SQL语句
- * 群ID和用户ID均为INTEGER，支持雪花算法，复合主键关联群组和用户
  */
 QString DatabaseSchema::getCreateTableGroupMembers() {
     return R"(
@@ -80,7 +78,6 @@ QString DatabaseSchema::getCreateTableGroupMembers() {
 
 /**
  * @brief 获取创建"群组表"的SQL语句
- * 群ID（group_id）使用INTEGER支持雪花算法
  */
 QString DatabaseSchema::getCreateTableGroups() {
     return R"(
@@ -98,14 +95,13 @@ QString DatabaseSchema::getCreateTableGroups() {
 
 /**
  * @brief 获取创建"会话表"的SQL语句
- * 会话ID、群ID、用户ID均为INTEGER，支持雪花算法，外键关联一致
  */
 QString DatabaseSchema::getCreateTableConversations() {
     return R"(
         CREATE TABLE IF NOT EXISTS conversations (
             conversation_id INTEGER PRIMARY KEY,         -- 会话ID
-            group_id INTEGER,                            -- 群聊目标ID
-            user_id INTEGER,                             -- 用户目标ID
+            group_id INTEGER UNIQUE,                     -- 目标群聊ID（唯一，避免重复群聊会话）
+            user_id INTEGER UNIQUE,                      -- 目标用户ID（唯一，避免重复单聊会话）
             type INTEGER NOT NULL,                       -- 会话类型（0:单聊 1:群聊）
 
             -- 冗余字段（列表展示时快速查询）
@@ -127,7 +123,6 @@ QString DatabaseSchema::getCreateTableConversations() {
 
 /**
  * @brief 获取创建"消息表"的SQL语句
- * 消息ID、会话ID、发送者ID均为INTEGER，支持雪花算法（高频生成场景适配）
  */
 QString DatabaseSchema::getCreateTableMessages() {
     return R"(
@@ -154,7 +149,6 @@ QString DatabaseSchema::getCreateTableMessages() {
 
 /**
  * @brief 获取创建"媒体缓存表"的SQL语句
- * 本地缓存ID保持自增INTEGER（无需雪花算法）
  */
 QString DatabaseSchema::getCreateTableMediaCache() {
     return R"(
@@ -171,32 +165,148 @@ QString DatabaseSchema::getCreateTableMediaCache() {
     )";
 }
 
+
+
+/**
+ * @brief 获取创建消息表触发器的SQL语句
+ * 用于在插入、更新、删除消息时自动更新会话的最后消息
+ */
+QStringList DatabaseSchema::getCreateTriggers()
+{
+    return {
+        // 消息插入触发器 - 简化版本
+        R"(
+            CREATE TRIGGER IF NOT EXISTS trigger_conversation_insert
+            AFTER INSERT ON messages
+            FOR EACH ROW
+            BEGIN
+                UPDATE conversations
+                SET last_message_content = NEW.content,
+                    last_message_time = NEW.msg_time,
+                    unread_count = unread_count + 1
+                WHERE conversation_id = NEW.conversation_id;
+            END
+        )",
+
+        // 消息删除触发器 - 简化版本
+        R"(
+            CREATE TRIGGER IF NOT EXISTS trigger_conversation_delete
+            AFTER DELETE ON messages
+            FOR EACH ROW
+            BEGIN
+                -- 只有当删除的是最后一条消息时才更新
+                UPDATE conversations
+                SET last_message_content = (
+                    SELECT content FROM messages
+                    WHERE conversation_id = OLD.conversation_id
+                    ORDER BY msg_time DESC, message_id DESC
+                    LIMIT 1
+                ),
+                last_message_time = (
+                    SELECT msg_time FROM messages
+                    WHERE conversation_id = OLD.conversation_id
+                    ORDER BY msg_time DESC, message_id DESC
+                    LIMIT 1
+                )
+                WHERE conversation_id = OLD.conversation_id
+                AND last_message_time <= OLD.msg_time;
+            END
+        )",
+
+        // 唯一当前用户触发器
+        R"(
+            CREATE TRIGGER IF NOT EXISTS trigger_unique_current_user
+            BEFORE INSERT ON users
+            WHEN NEW.is_current = 1
+            BEGIN
+                UPDATE users SET is_current = 0;
+            END
+        )",
+
+        // 1. 用户头像变更时更新对应单聊会话的头像
+        R"(
+            CREATE TRIGGER IF NOT EXISTS trigger_update_conversation_avatar_on_user_update
+            AFTER UPDATE OF avatar, avatar_local_path ON users
+            FOR EACH ROW
+            WHEN OLD.avatar IS NOT NULL OR OLD.avatar_local_path IS NOT NULL
+            BEGIN
+                UPDATE conversations
+                SET avatar = NEW.avatar,
+                    avatar_local_path = NEW.avatar_local_path
+                WHERE user_id = NEW.user_id AND type = 0;
+            END
+        )",
+
+        // 2. 联系人备注名变更时更新对应会话的title
+        R"(
+            CREATE TRIGGER IF NOT EXISTS trigger_update_conversation_title_on_contact_update
+            AFTER UPDATE OF remark_name ON contacts
+            FOR EACH ROW
+            WHEN OLD.remark_name IS NOT NULL
+            BEGIN
+                UPDATE conversations
+                SET title =
+                    CASE
+                        WHEN NEW.remark_name IS NOT NULL AND NEW.remark_name != ''
+                        THEN NEW.remark_name
+                        ELSE (SELECT nickname FROM users WHERE user_id = NEW.user_id)
+                    END
+                WHERE user_id = NEW.user_id AND type = 0;
+            END
+        )",
+
+        // 3. 群组信息变更时更新对应群聊会话的title和头像
+        R"(
+            CREATE TRIGGER IF NOT EXISTS trigger_update_conversation_on_group_update
+            AFTER UPDATE OF group_name, avatar, avatar_local_path ON groups
+            FOR EACH ROW
+            WHEN OLD.group_name IS NOT NULL OR OLD.avatar IS NOT NULL OR OLD.avatar_local_path IS NOT NULL
+            BEGIN
+                UPDATE conversations
+                SET title = NEW.group_name,
+                    avatar = NEW.avatar,
+                    avatar_local_path = NEW.avatar_local_path
+                WHERE group_id = NEW.group_id AND type = 1;
+            END
+        )"
+    };
+}
+
+
 /**
  * @brief 获取创建数据库索引的SQL语句
- * 索引适配INTEGER类型字段，查询性能更优
  */
 QString DatabaseSchema::getCreateIndexes() {
     return R"(
-        -- 用户表索引：确保只有一个当前用户
+        -- 用户表索引
         CREATE UNIQUE INDEX IF NOT EXISTS idx_users_current ON users(is_current) WHERE is_current = 1;
+        CREATE INDEX IF NOT EXISTS idx_users_account ON users(account);
 
         -- 联系人表索引
-        CREATE INDEX IF NOT EXISTS idx_contacts_is_starred ON contacts(is_starred);
-        CREATE INDEX IF NOT EXISTS idx_contacts_last_contact ON contacts(last_contact_time);
-        CREATE INDEX IF NOT EXISTS idx_contacts_tags ON contacts(tags);
+        CREATE INDEX IF NOT EXISTS idx_contacts_starred ON contacts(is_starred);
+        CREATE INDEX IF NOT EXISTS idx_contacts_blocked ON contacts(is_blocked);
+        CREATE INDEX IF NOT EXISTS idx_contacts_add_time ON contacts(add_time);
 
-        -- 群成员表索引（适配INTEGER类型group_id/user_id）
-        CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON group_members(user_id);
+        -- 群组相关索引
+        CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id);
+        CREATE INDEX IF NOT EXISTS idx_group_members_group_role ON group_members(group_id, role);
+        CREATE INDEX IF NOT EXISTS idx_groups_name ON groups(group_name);
 
-        -- 会话表索引（按时间排序更高效，INTEGER比TEXT排序快）
-        CREATE INDEX IF NOT EXISTS idx_conversations_last_time ON conversations(last_message_time);
-        CREATE INDEX IF NOT EXISTS idx_conversations_top_time ON conversations(is_top, last_message_time);
+        -- 会话表索引
+        CREATE INDEX IF NOT EXISTS idx_conversations_last_time ON conversations(last_message_time DESC);
+        CREATE INDEX IF NOT EXISTS idx_conversations_top_time ON conversations(is_top, last_message_time DESC);
+        CREATE INDEX IF NOT EXISTS idx_conversations_group_user ON conversations(group_id, user_id);
+        CREATE INDEX IF NOT EXISTS idx_conversations_type ON conversations(type);
 
-        -- 消息表核心索引（INTEGER类型联合索引性能最优）
-        CREATE INDEX IF NOT EXISTS idx_messages_conv_time ON messages(conversation_id, msg_time);
+        -- 消息表索引（关键性能索引）
+        CREATE INDEX IF NOT EXISTS idx_messages_conversation_time ON messages(conversation_id, msg_time DESC);
+        CREATE INDEX IF NOT EXISTS idx_messages_sender_time ON messages(sender_id, msg_time DESC);
+        CREATE INDEX IF NOT EXISTS idx_messages_time ON messages(msg_time DESC);
+        CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(type);
 
-        -- 媒体缓存表索引
-        CREATE INDEX IF NOT EXISTS idx_media_original_url ON media_cache(original_url);
-        CREATE INDEX IF NOT EXISTS idx_media_access ON media_cache(last_access_time, access_count);
+        -- 媒体缓存索引
+        CREATE INDEX IF NOT EXISTS idx_media_url ON media_cache(original_url);
+        CREATE INDEX IF NOT EXISTS idx_media_access ON media_cache(last_access_time DESC);
+        CREATE INDEX IF NOT EXISTS idx_media_type ON media_cache(file_type);
     )";
 }
