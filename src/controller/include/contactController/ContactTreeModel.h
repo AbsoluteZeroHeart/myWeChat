@@ -19,6 +19,8 @@ public:
     bool isParentNode(const QModelIndex &index) const;
     bool isContactNode(const QModelIndex &index) const;
 
+    QModelIndex findContactIndex(qint64 userId) const;
+
 private:
     QStandardItem *m_newFriendItem;
     QStandardItem *m_officialAccountItem;

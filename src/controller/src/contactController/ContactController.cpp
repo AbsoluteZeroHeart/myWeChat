@@ -207,6 +207,13 @@ void ContactController::setContactBlocked(int reqId, qint64 userId, bool blocked
     emit setContactBlockedRequested(reqId, userId, blocked);
 }
 
+
+void ContactController::setSelectedContact(const Contact &contact)
+{
+    m_contact = contact;
+}
+
+
 void ContactController::getStarredContacts(int reqId)
 {
     if (!m_contactTable) {

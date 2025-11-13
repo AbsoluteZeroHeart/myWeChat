@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QAtomicInteger>     // 线程安全计数器
 #include <QHash>              // 哈希表存储键值对
+#include "Contact.h"
 #include "DatabaseManager.h"  // 数据库管理器
 #include "ChatListModel.h"    // 会话列表模型
 #include "Conversation.h"     // 会话数据结构
@@ -25,8 +26,8 @@ public:
     ChatListModel* chatListModel() const { return m_chatListModel; }
 
     // 异步操作：会话管理相关
-    void loadConversations();             // 加载所有会话
-    void createSingleChat(qint64 userId); // 创建单聊会话
+    void loadConversations(int reqId);    // 加载所有会话
+    void createSingleChat(Contact contact); // 创建单聊会话
     void createGroupChat(qint64 groupId); // 创建群聊会话
 
     void clearUnreadCount(qint64 conversationId);      // 清空未读消息数
@@ -49,7 +50,7 @@ signals:
 
     // 状态变更信号
     void errorOccurred(const QString& error); // 错误发生
-    void conversationLoaded();
+    void conversationLoaded(QString functionCaller);
 
 private slots:
     // 数据库操作结果处理
@@ -65,7 +66,6 @@ private:
     void connectSignals(); // 连接信号槽
 
     // 当前会话管理
-    Conversation getCurrentConversation() const;
 
 
 private:

@@ -32,6 +32,10 @@ public:
     Conversation getConversationAt(int index) const;
     int findConversationIndex(qint64 conversationId) const;
 
+    QModelIndex getConversationIndex(qint64 conversationId) const;
+    QModelIndex getConversationIndexByContactId(qint64 contactId) const;
+
+
 private:
     QVector<Conversation> m_conversations;
 };

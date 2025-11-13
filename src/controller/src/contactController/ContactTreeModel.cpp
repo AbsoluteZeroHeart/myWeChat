@@ -98,3 +98,19 @@ bool ContactTreeModel::isContactNode(const QModelIndex &index) const
     QVariant contactData = item->data(Qt::UserRole);
     return contactData.isValid() && contactData.canConvert<Contact>();
 }
+
+
+QModelIndex ContactTreeModel::findContactIndex(qint64 userId) const
+{
+    if (!m_contactGroupItem) return QModelIndex();
+
+    for (int row = 0; row < m_contactGroupItem->rowCount(); ++row) {
+        QStandardItem* contactItem = m_contactGroupItem->child(row);
+        Contact contact = contactItem->data(Qt::UserRole).value<Contact>();
+
+        if (contact.userId == userId) {
+            return contactItem->index();
+        }
+    }
+    return QModelIndex();
+}

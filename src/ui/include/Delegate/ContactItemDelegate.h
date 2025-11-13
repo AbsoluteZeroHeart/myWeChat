@@ -4,6 +4,8 @@
 #include "ContactTreeModel.h"
 #include <QStyledItemDelegate>
 #include <QPainter>
+#include "MediaResourceManager.h"
+
 
 class ContactItemDelegate : public QStyledItemDelegate
 {
@@ -20,6 +22,8 @@ private:
 
     void drawDefaultAvatar(QPainter *painter, const QRect &avatarRect,
                            const QString &name, int radius) const;
+
+    void onMediaLoaded(const QString& resourcePath, const QPixmap& media, MediaType type);
 
 
     ContactTreeModel *m_model;

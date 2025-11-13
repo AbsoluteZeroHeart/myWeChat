@@ -6,14 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>726</width>
-    <height>650</height>
+    <width>710</width>
+    <height>634</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>726</width>
-    <height>650</height>
+    <width>710</width>
+    <height>634</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -788,7 +788,7 @@ QToolButton:disabled {
 </string>
          </property>
          <property name="currentIndex">
-          <number>1</number>
+          <number>0</number>
          </property>
          <widget class="QWidget" name="leftStackedWidgetpage0">
           <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -1198,7 +1198,7 @@ QToolButton:pressed {
           <enum>QFrame::Shadow::Raised</enum>
          </property>
          <property name="currentIndex">
-          <number>1</number>
+          <number>0</number>
          </property>
          <widget class="QWidget" name="rightStackedWidgetPage0">
           <property name="styleSheet">

@@ -6,6 +6,7 @@
 #include <QMenu>
 #include <QPushButton>
 #include <QToolButton>
+#include "Contact.h"
 #include "Conversation.h"
 #include "User.h"
 #include <QTreeView>
@@ -88,6 +89,7 @@ private slots:
 
     void on_recordVoiceButton_clicked();
 
+    bool on_switchtoMessageInterface(Contact contact);
 private:
     //自定义窗口相关
     bool m_isOnTop; // 记录当前是否置顶
@@ -135,6 +137,7 @@ private:
 
     Conversation currentConversation;
     User currentUser;
+    Contact m_contact;
 
     // 通讯录TreeView
     ContactController *contactController;

@@ -99,7 +99,7 @@ QString DatabaseSchema::getCreateTableGroups() {
 QString DatabaseSchema::getCreateTableConversations() {
     return R"(
         CREATE TABLE IF NOT EXISTS conversations (
-            conversation_id INTEGER PRIMARY KEY,         -- 会话ID
+            conversation_id INTEGER PRIMARY KEY AUTOINCREMENT,   -- 会话ID
             group_id INTEGER UNIQUE,                     -- 目标群聊ID（唯一，避免重复群聊会话）
             user_id INTEGER UNIQUE,                      -- 目标用户ID（唯一，避免重复单聊会话）
             type INTEGER NOT NULL,                       -- 会话类型（0:单聊 1:群聊）

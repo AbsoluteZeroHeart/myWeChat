@@ -30,6 +30,8 @@ public:
     void setContactStarred(int reqId, qint64 userId, bool starred);
     void setContactBlocked(int reqId, qint64 userId, bool blocked);
 
+    void setSelectedContact(const Contact &contact);
+
 signals:
     // 异步操作请求信号
     void addContactRequested(int reqId, const Contact& contact);
@@ -76,6 +78,7 @@ private:
     ContactTable* m_contactTable;
     QMap<int, QPair<qint64, QString>> m_pendingUpdates;
     ContactTreeModel *m_contactTreeModel;
+    Contact m_contact;
 
 };
 

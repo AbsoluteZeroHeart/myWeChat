@@ -49,22 +49,35 @@ void ConversationController::connectSignals()
             this, &ConversationController::onTopStatusToggled);
 }
 
-void ConversationController::loadConversations()
+void ConversationController::loadConversations(int reqId)
 {
     if (!m_conversationTable) {
         emit errorOccurred("Conversation table not available");
         return;
     }
 
-    int reqId = generateReqId();
-    m_pendingOperations.insert(reqId, "loadConversations");
     QMetaObject::invokeMethod(m_conversationTable, "getAllConversations",
                               Qt::QueuedConnection,
                               Q_ARG(int, reqId));
 }
 
-void ConversationController::createSingleChat(qint64 userId)
+void ConversationController::createSingleChat(Contact contact)
 {
+    Conversation conversation;
+    conversation.userId = contact.userId;
+    conversation.type = 0;
+    conversation.title = contact.remarkName;
+    conversation.avatar = contact.user.avatar;
+    conversation.avatarLocalPath = contact.user.avatarLocalPath;
+
+    int reqId = generateReqId();
+    m_pendingOperations[reqId] = "createSingleChat";
+
+    QMetaObject::invokeMethod(m_conversationTable, "saveConversation",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, reqId),
+                              Q_ARG(Conversation,conversation));
+
 }
 
 void ConversationController::createGroupChat(qint64 groupId)
@@ -154,18 +167,20 @@ void ConversationController::handleDelete(qint64 conversationId)
 // 数据库操作结果处理槽函数
 void ConversationController::onAllConversationsLoaded(int reqId, const QList<Conversation>& conversations)
 {
-    QString operation = m_pendingOperations.take(reqId);
-
     m_chatListModel->clearAll();
     for (const Conversation& conv : std::as_const(conversations)) {
         m_chatListModel->addConversation(conv);
     }
-    emit conversationLoaded();
+    QString functionCaller = m_pendingOperations[reqId];
+    m_pendingOperations.remove(reqId);
+
+    emit conversationLoaded(functionCaller);
 }
 
 void ConversationController::onConversationSaved(int reqId, bool success, const QString& error)
 {
-
+    if(!success)qDebug()<<"创建会话失败"<<error;
+    loadConversations(reqId);
 }
 
 void ConversationController::onConversationUpdated(int reqId, bool success, const QString& error)
@@ -183,7 +198,7 @@ void ConversationController::onConversationDeleted(int reqId, bool success, cons
 
 void ConversationController::onTopStatusToggled(int reqId, qint64 conversationId)
 {
-    loadConversations();
+    loadConversations(0);
 }
 
 void ConversationController::onDbError(int reqId, const QString& error)
@@ -197,21 +212,9 @@ void ConversationController::onDbError(int reqId, const QString& error)
 
 
 // 当前会话相关操作
-Conversation ConversationController::getCurrentConversation() const
-{
-    if (m_chatListModel && m_currentConversationId > 0) {
-        return m_chatListModel->getConversation(m_currentConversationId);
-    }
-    return Conversation();  // 返回空的Conversation对象
-}
-
 void ConversationController::setCurrentConversationId(qint64 conversationId)
 {
     if (m_currentConversationId != conversationId) {
         m_currentConversationId = conversationId;
-
-        // 发出当前会话变化的信号
-        Conversation currentConv = getCurrentConversation();
-        qDebug() << "Current conversation changed to:" << conversationId;
     }
 }

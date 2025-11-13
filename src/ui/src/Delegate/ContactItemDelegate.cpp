@@ -1,12 +1,16 @@
 #include "ContactItemDelegate.h"
 #include "Contact.h"
 #include "MediaResourceManager.h"
+#include <qabstractitemview.h>
 #include <qpainterpath.h>
 
 ContactItemDelegate::ContactItemDelegate(ContactTreeModel *model, QObject *parent)
     : QStyledItemDelegate(parent)
     , m_model(model)
 {
+    MediaResourceManager* mediaManager = MediaResourceManager::instance();
+    connect(mediaManager, &MediaResourceManager::mediaLoaded,
+            this, &ContactItemDelegate::onMediaLoaded);
 }
 
 void ContactItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
@@ -125,4 +129,15 @@ void ContactItemDelegate::drawDefaultAvatar(QPainter *painter, const QRect &avat
     painter->setFont(iniFont);
     painter->setPen(QColor(255, 255, 255));  // 白色文字，对比度更好
     painter->drawText(avatarRect, Qt::AlignCenter, name.isEmpty() ? "?" : name.left(1).toUpper());
+}
+
+
+void ContactItemDelegate::onMediaLoaded(const QString& resourcePath, const QPixmap& media, MediaType type)
+{
+    if(type == MediaType::Avatar) {
+        // 通知视图更新
+        if(QAbstractItemView* view = qobject_cast<QAbstractItemView*>(parent())) {
+            view->viewport()->update();
+        }
+    }
 }

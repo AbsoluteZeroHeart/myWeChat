@@ -8,8 +8,8 @@
  
 struct Conversation {
     qint64 conversationId = 0;
-    qint64 groupId = 0;
-    qint64 userId = 0;
+    qint64 groupId = -1;
+    qint64 userId = -1;
     int type = 0;
 
     QString title;

@@ -30,18 +30,19 @@ void ConversationTable::saveConversation(int reqId, const Conversation &conversa
         emit conversationSaved(reqId, false, "Database not open");
         return;
     }
+    QVariant groupIdValue = (conversation.groupId == -1) ? QVariant() : QVariant(conversation.groupId);
+    QVariant userIdValue = (conversation.userId == -1) ? QVariant() : QVariant(conversation.userId);
 
     QSqlQuery query(*m_database);
     query.prepare(R"(
         INSERT OR REPLACE INTO conversations
-        (conversation_id, user_id, group_id, type, title, avatar, avatar_local_path,
+        (user_id, group_id, type, title, avatar, avatar_local_path,
          last_message_content, last_message_time, unread_count, is_top)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     )");
 
-    query.addBindValue(conversation.conversationId);
-    query.addBindValue(conversation.userId);
-    query.addBindValue(conversation.groupId);
+    query.addBindValue(userIdValue);
+    query.addBindValue(groupIdValue);
     query.addBindValue(conversation.type);
     query.addBindValue(conversation.title);
     query.addBindValue(conversation.avatar);

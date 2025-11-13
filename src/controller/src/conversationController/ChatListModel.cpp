@@ -244,3 +244,28 @@ int ChatListModel::findConversationIndex(qint64 conversationId) const
     }
     return -1;
 }
+
+QModelIndex ChatListModel::getConversationIndex(qint64 conversationId) const
+{
+    for (int row = 0; row < rowCount(); ++row) {
+        QModelIndex index = createIndex(row, 0);
+        qint64 convId = data(index, ConversationIdRole).toLongLong();
+        if (convId == conversationId) {
+            return index;
+        }
+    }
+    return QModelIndex();
+
+}
+
+QModelIndex ChatListModel::getConversationIndexByContactId(qint64 contactId) const
+{
+    for (int row = 0; row < rowCount(); ++row) {
+        QModelIndex index = createIndex(row, 0);
+        qint64 convId = data(index, UserIdRole).toLongLong();
+        if (convId == contactId) {
+            return index;
+        }
+    }
+    return QModelIndex();
+}
