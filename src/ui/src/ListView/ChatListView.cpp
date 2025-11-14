@@ -86,6 +86,7 @@ void ChatListView::createConversationContextMenu()
     });
     connect(m_markAsUnreadAction, &QAction::triggered, this, [this]() {
         emit conversationMarkAsUnread(m_currentConversationId);
+
     });
     connect(m_toggleMuteAction, &QAction::triggered, this, [this]() {
         emit conversationToggleMute(m_currentConversationId);

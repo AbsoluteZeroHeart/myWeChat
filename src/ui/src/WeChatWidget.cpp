@@ -257,19 +257,41 @@ WeChatWidget::WeChatWidget(AppController * appController, QWidget *parent)
     // 联系人项选中改变时
     connect(contactTreeView->selectionModel(), &QItemSelectionModel::selectionChanged,
         this, [this](const QItemSelection &selected, const QItemSelection &deselected){
-        if (!selected.isEmpty()){
+
+        if (!selected.isEmpty() && contactTreeView->getSelectedContact().isValid()){
+            m_contact = contactTreeView->getSelectedContact();
             ui->rightStackedWidget->setCurrentWidget(ui->rightStackedWidgetpage1);
             ui->rightStackedWidgetpage1->show();
-
-            if(contactTreeView->getSelectedContact().isValid())
-                m_contact = contactTreeView->getSelectedContact();
-
             userInfoWidget->setSelectedContact(m_contact);
 
         }else if (!deselected.isEmpty()) {
             ui->rightStackedWidgetpage1->hide();
         }
     });
+    // 菜单信号连接
+    connect(contactTreeView, &ContactTreeView::sendMessage, this,
+        [this](const Contact &contact){
+        if(!on_switchtoMessageInterface(contact))
+            conversationController->createSingleChat(contact);
+    });
+    connect(contactTreeView, &ContactTreeView::starFriend, this,
+        [this](const Contact &contact){
+                contactController->setContactStarred(0, contact.userId, !contact.isStarred);
+    });
+    connect(contactTreeView, &ContactTreeView::removeFriend, this,
+        [this](const Contact &contact){
+                contactController->deleteContact(0, contact.userId);
+    });
+
+
+    // 删除成功
+    connect(contactController, &ContactController::contactDeleted, this,
+        [this](int reqId, bool success, const QString& error){
+        if(!success) qDebug()<<error;
+        ui->rightStackedWidgetpage1->hide();
+    });
+
+
     // 头像点击信号连接
     connect(userInfoWidget->avatarLabel,&ImgLabel::labelClicked, this,
             [&](const QPixmap &pixmap){

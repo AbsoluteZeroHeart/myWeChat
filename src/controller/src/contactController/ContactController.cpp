@@ -244,6 +244,7 @@ void ContactController::onContactUpdated(int reqId, bool success, const QString&
 void ContactController::onContactDeleted(int reqId, bool success, const QString& error)
 {
     if (success) {
+        getAllContacts(reqId);
         emit contactsChanged();
     }
     emit contactDeleted(reqId, success, error);
@@ -274,6 +275,7 @@ void ContactController::onSearchContactsResult(int reqId, const QList<Contact>& 
 void ContactController::onContactStarredSet(int reqId, bool success)
 {
     if (success) {
+        getAllContacts(reqId);
         emit contactsChanged();
     }
     emit contactStarredChanged(reqId, success, success ? QString() : "Failed to set starred");

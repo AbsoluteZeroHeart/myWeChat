@@ -60,13 +60,14 @@ MediaDialog::MediaDialog(QWidget *parent)
 
     thumbnailView->setModel(thumbnailPreview_Model);
     thumbnailView->setItemDelegate(thumbnail_Delegate);
-    // 设置3列网格布局
-    thumbnailView->setViewMode(QListView::IconMode);
-    thumbnailView->setFlow(QListView::LeftToRight);
-    thumbnailView->setResizeMode(QListView::Adjust);
-    thumbnailView->setWrapping(true);
-    thumbnailView->setSpacing(2);
-    thumbnailView->setFixedWidth(230);
+
+    thumbnailView->setViewMode(QListView::IconMode);  // 设置为图标模式（适合显示缩略图）
+    thumbnailView->setFlow(QListView::LeftToRight);   // 项排列方向：从左到右（行优先）
+    thumbnailView->setResizeMode(QListView::Adjust);  // 视图大小改变时自动调整布局
+    thumbnailView->setWrapping(true);   // 允许自动换行（配合排列方向形成网格）
+    thumbnailView->setSpacing(2);       // 项之间的间距设为2像素
+    thumbnailView->setFixedWidth(230);  // 固定宽度230像素（控制每行显示3列）
+
     on_thumbnailPreviewButton_clicked();
 
     // 选中项改变

@@ -123,10 +123,9 @@ QPixmap MediaResourceManager::processThumbnail(const QString& resourcePath, cons
 }
 
 // 处理原图片
-QPixmap MediaResourceManager::processOriginalImage(const QImage& image)
+QPixmap MediaResourceManager::processOriginalImage(const QImage& image, QSize size)
 {
-    // 直接返回原图，不进行任何处理
-    return QPixmap::fromImage(image);
+    return QPixmap::fromImage(image.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
 
 QPixmap MediaResourceManager::createDefaultThumbnail(const QSize& size, MediaType type, const QString& text)
@@ -192,7 +191,7 @@ QPixmap MediaResourceManager::processMedia(const QImage& image, const QSize& siz
     case MediaType::FileIcon:
         return QPixmap::fromImage(image.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     case MediaType::OriginalImage:  // 原图片处理
-        return processOriginalImage(image);
+        return processOriginalImage(image, size);
     default:
         return QPixmap::fromImage(image.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     }

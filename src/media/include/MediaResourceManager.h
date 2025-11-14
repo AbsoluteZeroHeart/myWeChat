@@ -64,7 +64,7 @@ public:
                                     const QSize& size, MediaType type);
 
     // 处理原图片加载
-    static QPixmap processOriginalImage(const QImage& image);
+    static QPixmap processOriginalImage(const QImage& image, QSize size);
 
     // 取消正在进行的加载任务
     void cancelLoading(const QString& cacheKey);
