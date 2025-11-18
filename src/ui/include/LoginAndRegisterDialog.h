@@ -1,14 +1,13 @@
 #ifndef LOGINANDREGISTERDIALOG_H
 #define LOGINANDREGISTERDIALOG_H
 
-
 #include <QDialog>
 #include <QPoint>
 #include <QPixmap>
 
 
-class QStackedWidget;
 namespace Ui { class LoginAndRegisterDialog; }
+class LoginAndRegisterController;
 
 
 class LoginAndRegisterDialog : public QDialog
@@ -17,7 +16,7 @@ class LoginAndRegisterDialog : public QDialog
 
     
 public:
-    explicit LoginAndRegisterDialog(QWidget *parent = nullptr);
+    explicit LoginAndRegisterDialog(LoginAndRegisterController *loginAndRegisterController, QWidget *parent = nullptr);
     ~LoginAndRegisterDialog() override;
 
 
@@ -36,6 +35,13 @@ private slots:
     void on_registerButton_clicked();
     void on_wechatNumButton_clicked();
     void on_registerButton_2_clicked();
+
+
+    void on_LoginOrRegister_clicked();
+
+    void on_loginButton1_clicked();
+
+    void on_loginButton2_clicked();
 
 private:
     Ui::LoginAndRegisterDialog *ui;

@@ -20,7 +20,7 @@ CurrentUserInfoDialog::~CurrentUserInfoDialog()
     delete ui;
 }
 
-void CurrentUserInfoDialog::setCurrentUser(const User &user)
+void CurrentUserInfoDialog::setCurrentUser(const Contact &user)
 {
     currentUser = user;
     MediaResourceManager* mediaManager = MediaResourceManager::instance();
@@ -28,22 +28,22 @@ void CurrentUserInfoDialog::setCurrentUser(const User &user)
     connect(mediaManager, &MediaResourceManager::mediaLoaded, this,
         [this, mediaManager](const QString& resourcePath, const QPixmap& media, MediaType type){
 
-        QPixmap avatar = mediaManager->getMedia(currentUser.avatarLocalPath,
+        QPixmap avatar = mediaManager->getMedia(currentUser.user.avatarLocalPath,
                                                 QSize(500, 500), MediaType::Avatar,0);
         avatarLabel ->setPixmap(avatar);
     });
 
-    QPixmap avatar = mediaManager->getMedia(currentUser.avatarLocalPath,
+    QPixmap avatar = mediaManager->getMedia(currentUser.user.avatarLocalPath,
                                             QSize(500, 500), MediaType::Avatar,0);
     avatarLabel ->setPixmap(avatar);
-    account->setText(currentUser.account);
-    nickname->setText(currentUser.nickname);
-    region->setText(currentUser.region);
+    account->setText(currentUser.user.account);
+    nickname->setText(currentUser.user.nickname);
+    region->setText(currentUser.user.region);
 }
 
 
 void CurrentUserInfoDialog::on_switchMessageInterfaceToolButton_clicked()
 {
-    emit switchMessageInterfaceToolButton();
+    emit switchMessageInterfaceToolButton(currentUser);
 }
 

@@ -229,21 +229,21 @@ WeChatWidget::WeChatWidget(AppController * appController, QWidget *parent)
 
 
     // 当前登录用户-----------------------------------------------------------------------------------
-    connect(userController, &UserController::currentUserLoaded, this,
-        [this](int reqId, const User& user){
-            currentUser = user;
+    connect(contactController, &ContactController::currentUserLoaded, this,
+        [this](int reqId, const Contact& contact){
+            currentUser = contact;
             MediaResourceManager* mediaManager = MediaResourceManager::instance();
             connect(mediaManager, &MediaResourceManager::mediaLoaded, this,
                 [this,mediaManager](const QString& resourcePath, const QPixmap& media, MediaType type){
-                QPixmap avatar = mediaManager->getMedia(currentUser.avatarLocalPath,
+                QPixmap avatar = mediaManager->getMedia(currentUser.user.avatarLocalPath,
                                                         QSize(500, 500), MediaType::Avatar, 60);
                 ui->avatarPushButton->setIcon(avatar);
             });
-            QPixmap avatar = mediaManager->getMedia(currentUser.avatarLocalPath,
+            QPixmap avatar = mediaManager->getMedia(currentUser.user.avatarLocalPath,
                                                     QSize(500, 500), MediaType::Avatar, 60);
             ui->avatarPushButton->setIcon(avatar);
     });
-    userController->getCurrentUser();
+    contactController->getCurrentUser();
 
 
 
@@ -763,9 +763,11 @@ void WeChatWidget::on_avatarPushButton_clicked()
                     currentUserInfoDialog->close();});
 
         connect(currentUserInfoDialog, &CurrentUserInfoDialog::switchMessageInterfaceToolButton,
-            this, [this]{
-            // if(!on_switchtoMessageInterface())
-                // conversationController->createSingleChat();
+            this, [this](const Contact &contact){
+            Contact user = contact;
+            if(!on_switchtoMessageInterface(user))
+                conversationController->createSingleChat(user);
+            currentUserInfoDialog->close();
         });
 
         // 弹窗显示与位置

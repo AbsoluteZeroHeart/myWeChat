@@ -1,5 +1,5 @@
 #include "LoginAndRegisterDialog.h"
-#include "ui_loginandregisterdialog.h"
+#include "ui_LoginAndRegisterDialog.h"
 
 #include <QPainter>
 #include <QPainterPath>
@@ -7,8 +7,10 @@
 #include <QDebug>
 #include <QStackedWidget>
 #include <QAbstractButton>
+#include "LoginAndRegisterController.h"
 
-LoginAndRegisterDialog::LoginAndRegisterDialog(QWidget *parent)
+
+LoginAndRegisterDialog::LoginAndRegisterDialog(LoginAndRegisterController *loginAndRegisterController, QWidget *parent)
     : QDialog(parent)
     , ui(new Ui::LoginAndRegisterDialog)
     , m_isDragging(false)
@@ -150,5 +152,23 @@ void LoginAndRegisterDialog::on_wechatNumButton_clicked()
 void LoginAndRegisterDialog::on_registerButton_2_clicked()
 {
     on_SMSLoginButton_clicked();
+}
+
+
+void LoginAndRegisterDialog::on_LoginOrRegister_clicked()
+{
+    accept();
+}
+
+
+void LoginAndRegisterDialog::on_loginButton1_clicked()
+{
+    accept();
+}
+
+
+void LoginAndRegisterDialog::on_loginButton2_clicked()
+{
+    accept();
 }
 

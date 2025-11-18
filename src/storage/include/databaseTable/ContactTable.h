@@ -18,8 +18,9 @@ public slots:
 
      void init();
 
-    // 异步槽函数：均携带reqId参数，用于Controller区分并发请求的结果对应关系
+    void getCurrentUser(int reqId);//获取当前登录用户
 
+    // 异步槽函数：均携带reqId参数，用于Controller区分并发请求的结果对应关系
     void saveContact(int reqId, Contact contact);    // 保存联系人（新增）
     void updateContact(int reqId, Contact contact);  // 更新联系人信息
     void deleteContact(int reqId, qint64 userId);    // 根据用户ID删除联系人

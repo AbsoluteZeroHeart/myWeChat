@@ -8,7 +8,6 @@
 #include <QToolButton>
 #include "Contact.h"
 #include "Conversation.h"
-#include "User.h"
 #include <QTreeView>
 
 namespace Ui {
@@ -136,7 +135,7 @@ private:
     ChatMessageListView *chatMessageListView;
 
     Conversation currentConversation;
-    User currentUser;
+    Contact currentUser;
     Contact m_contact;
 
     // 通讯录TreeView

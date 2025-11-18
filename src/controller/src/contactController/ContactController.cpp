@@ -7,6 +7,7 @@ ContactController::ContactController(DatabaseManager* dbManager, QObject* parent
     , m_dbManager(dbManager)
     , m_contactTable(nullptr)
     , m_contactTreeModel(new ContactTreeModel(this))
+    , m_reqIdCounter(0)
 {
     if (m_dbManager) {
         m_contactTable = m_dbManager->contactTable();
@@ -70,6 +71,8 @@ void ContactController::connectAsyncSignals()
             m_contactTable, &ContactTable::setContactBlocked, Qt::QueuedConnection);
     connect(this, &ContactController::getStarredContactsRequested,
             m_contactTable, &ContactTable::getStarredContacts, Qt::QueuedConnection);
+    connect(this, &ContactController::getCurrentUserRequested,
+            m_contactTable, &ContactTable::getCurrentUser, Qt::QueuedConnection);
 }
 
 void ContactController::disconnectSignals()
@@ -116,6 +119,12 @@ void ContactController::disconnectSignals()
                m_contactTable, &ContactTable::getStarredContacts);
 }
 
+int ContactController::generateReqId()
+{
+    return m_reqIdCounter.fetchAndAddAcquire(1);
+}
+
+
 // 异步操作方法 - 只进行参数验证和发射信号
 void ContactController::addContact(int reqId, const Contact& contact)
 {
@@ -155,6 +164,18 @@ void ContactController::deleteContact(int reqId, qint64 userId)
     }
 
     emit deleteContactRequested(reqId, userId);
+}
+
+
+void ContactController::getCurrentUser()
+{
+    if (!m_contactTable) {
+        return;
+    }
+    int reqId = generateReqId();
+
+    m_pendingUpdates[reqId] = "getCurrentUser";
+    emit getCurrentUserRequested(reqId);
 }
 
 void ContactController::getContact(int reqId, qint64 userId)
@@ -254,8 +275,9 @@ void ContactController::onContactLoaded(int reqId, const Contact& contact)
 {
     // 检查是否是更新操作的中间步骤
     if (m_pendingUpdates.contains(reqId)) {
-        auto [userId, value] = m_pendingUpdates.take(reqId);
-        // .......
+        if(m_pendingUpdates[reqId]=="getCurrentUser")
+            emit currentUserLoaded(reqId, contact);
+
     } else {
         emit contactLoaded(reqId, contact);
     }

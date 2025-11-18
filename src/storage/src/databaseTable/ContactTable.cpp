@@ -28,6 +28,21 @@ QString ContactTable::tagsToString(const QJsonArray &tags) const {
     return QString::fromUtf8(QJsonDocument(tags).toJson(QJsonDocument::Compact));
 }
 
+void ContactTable::getCurrentUser(int reqId)
+{
+    QSqlQuery query(*m_database);
+    // 获取当前用户ID
+    int currentUserId = -1;
+    if (query.exec("SELECT user_id FROM users WHERE is_current = 1")) {
+        if (query.next()) {
+            currentUserId = query.value("user_id").toLongLong();
+        }
+    }
+
+    getContact(reqId, currentUserId);
+}
+
+
 void ContactTable::saveContact(int reqId, Contact contact)
 {
     if (!m_database || !m_database->isValid() || !m_database->isOpen()) {

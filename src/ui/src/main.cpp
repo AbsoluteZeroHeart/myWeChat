@@ -14,6 +14,10 @@
 #include "Conversation.h"
 #include "MediaResourceManager.h"
 #include <QMessageBox>
+#include "LoginAndRegisterDialog.h"
+#include "LoginAndRegisterController.h"
+
+
 
 
 int main(int argc, char *argv[])
@@ -45,12 +49,19 @@ int main(int argc, char *argv[])
     qRegisterMetaType<User>("User");
     qRegisterMetaType<QList<User>>("QList<User>");
 
+    LoginAndRegisterController loginAndRegisterController;
+    LoginAndRegisterDialog loginAndRegisterDialog(&loginAndRegisterController);
+    if(loginAndRegisterDialog.exec() == QDialog::Accepted){
+        qDebug()<<"登录成功-----";
+    }
+
+
     DatabaseInitializationController* initController = new DatabaseInitializationController();
     AppInitialize* appInit = new AppInitialize(initController);
 
-    DatabaseManager* databaseManager;
-    AppController* appController;
-    WeChatWidget* wechatWidget;
+    DatabaseManager* databaseManager = nullptr;
+    AppController* appController = nullptr;
+    WeChatWidget* wechatWidget = nullptr;
 
     QObject::connect(appInit, &AppInitialize::isInited, &app, [&](){
         databaseManager = new DatabaseManager();

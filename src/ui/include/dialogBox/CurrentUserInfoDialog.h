@@ -2,7 +2,7 @@
 #define CURRENTUSERINFODIALOG_H
 
 #include "ClickClosePopup.h"
-#include "User.h"
+#include "Contact.h"
 #include <QLabel>
 
 namespace Ui {
@@ -17,7 +17,7 @@ class CurrentUserInfoDialog : public ClickClosePopup
 public:
     explicit CurrentUserInfoDialog(QWidget *parent = nullptr);
     ~CurrentUserInfoDialog();
-    void setCurrentUser(const User &user);
+    void setCurrentUser(const Contact &user);
 
     ImgLabel *avatarLabel;
     QLabel *account;
@@ -25,7 +25,7 @@ public:
     QLabel *nickname;
 
 signals:
-    void switchMessageInterfaceToolButton();
+    void switchMessageInterfaceToolButton(const Contact &contact);
 
 protected:
 
@@ -35,7 +35,7 @@ private slots:
 
 private:
     Ui::CurrentUserInfoDialog *ui;
-    User currentUser;
+    Contact currentUser;
 
 };
 

@@ -591,7 +591,7 @@ QPushButton:pressed{
                    </widget>
                   </item>
                   <item>
-                   <widget class="QPushButton" name="pawdPhButton">
+                   <widget class="QPushButton" name="loginButton2">
                     <property name="minimumSize">
                      <size>
                       <width>170</width>
@@ -845,7 +845,7 @@ QPushButton:pressed{
                    <number>7</number>
                   </property>
                   <item>
-                   <widget class="QPushButton" name="pushButton_6">
+                   <widget class="QPushButton" name="LoginOrRegister">
                     <property name="minimumSize">
                      <size>
                       <width>197</width>
@@ -1089,7 +1089,7 @@ QPushButton:pressed{
                    </widget>
                   </item>
                   <item>
-                   <widget class="QPushButton" name="pushButton_4">
+                   <widget class="QPushButton" name="loginButton1">
                     <property name="minimumSize">
                      <size>
                       <width>170</width>

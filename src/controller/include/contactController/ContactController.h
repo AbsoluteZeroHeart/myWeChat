@@ -22,6 +22,7 @@ public:
     void updateContact(int reqId, const Contact& contact);
     void deleteContact(int reqId, qint64 userId);
 
+    void getCurrentUser();
     void getContact(int reqId, qint64 userId);
     void getAllContacts(int reqId);
     void searchContacts(int reqId, const QString& keyword);
@@ -38,6 +39,7 @@ signals:
     void updateContactRequested(int reqId, const Contact& contact);
     void deleteContactRequested(int reqId, qint64 userId);
     void getContactRequested(int reqId, qint64 userId);
+    void getCurrentUserRequested(int reqId);
     void getAllContactsRequested(int reqId);
     void searchContactsRequested(int reqId, const QString& keyword);
     void setContactStarredRequested(int reqId, qint64 userId, bool starred);
@@ -45,6 +47,7 @@ signals:
     void getStarredContactsRequested(int reqId);
 
     // 操作结果信号
+    void currentUserLoaded(int reqId, const Contact& contact); // 当前用户加载结果
     void contactAdded(int reqId, bool success, const QString& error);
     void contactUpdated(int reqId, bool success, const QString& error);
     void contactDeleted(int reqId, bool success, const QString& error);
@@ -72,11 +75,14 @@ private:
     void connectSignals();
     void disconnectSignals();
     void connectAsyncSignals();
+    int generateReqId();   // 生成唯一请求ID
+
 
 private:
     DatabaseManager* m_dbManager;
     ContactTable* m_contactTable;
-    QMap<int, QPair<qint64, QString>> m_pendingUpdates;
+    QAtomicInteger<int> m_reqIdCounter;      // 请求ID计数器（线程安全）
+    QHash<int, QString> m_pendingUpdates; // 待处理操作（reqId->操作类型）
     ContactTreeModel *m_contactTreeModel;
     Contact m_contact;
 
