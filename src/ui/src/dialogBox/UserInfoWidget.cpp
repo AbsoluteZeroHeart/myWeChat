@@ -1,5 +1,5 @@
 #include "UserInfoWidget.h"
-#include "MediaResourceManager.h"
+#include "ThumbnailResourceManager.h"
 #include "ui_UserInfoWidget.h"
 
 UserInfoWidget::UserInfoWidget(QWidget *parent)
@@ -30,14 +30,14 @@ void UserInfoWidget::setSelectedContact(const Contact &contact)
 {
     m_contact = contact;
 
-    MediaResourceManager* mediaManager = MediaResourceManager::instance();
-    connect(mediaManager, &MediaResourceManager::mediaLoaded, this,
-        [this, mediaManager](const QString& resourcePath, const QPixmap& media, MediaType type){
-        QPixmap avatar = mediaManager->getMedia(m_contact.user.avatarLocalPath,
+    ThumbnailResourceManager* thumbnailManager = ThumbnailResourceManager::instance();
+    connect(thumbnailManager, &ThumbnailResourceManager::mediaLoaded, this,
+        [this, thumbnailManager](const QString& resourcePath, const QPixmap& media, MediaType type){
+        QPixmap avatar = thumbnailManager->getThumbnail(m_contact.user.avatarLocalPath,
                                                 QSize(500, 500), MediaType::Avatar,0);
         avatarLabel ->setPixmap(avatar);
     });
-    QPixmap avatar = mediaManager->getMedia(m_contact.user.avatarLocalPath,
+    QPixmap avatar = thumbnailManager->getThumbnail(m_contact.user.avatarLocalPath,
                                             QSize(500, 500), MediaType::Avatar,0);
     avatarLabel ->setPixmap(avatar);
 

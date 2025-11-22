@@ -26,7 +26,7 @@
 #include <QUrl>
 #include <QFileInfo>
 #include <QStandardPaths>
-#include "MediaResourceManager.h"
+#include "ThumbnailResourceManager.h"
 #include <QCheckBox>
 #include <QFileDialog>
 #include "MessageTextEdit.h"
@@ -202,17 +202,23 @@ WeChatWidget::WeChatWidget(AppController * appController, QWidget *parent)
             &ChatMessageListView::execMessageListMenu);
 
     connect(chatMessageDelegate, &ChatMessageDelegate::mediaClicked, this,
-        [&](const qint64 msgId, const qint64 conversationId){
+        [this](const qint64 msgId, const qint64 conversationId){
         qDebug()<<"点击媒体";
-        if(!mediaDialog) mediaDialog = new MediaDialog();
-        mediaDialog->setAttribute(Qt::WA_DeleteOnClose);
-        messageController->getMediaItems(conversationId);
+        if(!mediaDialog)
+        {
+            mediaDialog = new MediaDialog();
+             mediaDialog->setAttribute(Qt::WA_DeleteOnClose);
+        }
+        disconnect(messageController, &MessageController::mediaItemsLoaded, this, nullptr); //避免重复连接
         connect(messageController, &MessageController::mediaItemsLoaded, this,
-            [this,msgId](int reqId, const QList<MediaItem>& items){
-                mediaDialog->setMediaItems(items);
-                mediaDialog->selectMediaByMessageId(msgId);
+            [this,msgId](const QList<MediaItem>& items){
+                if (mediaDialog) {
+                    mediaDialog->setMediaItems(items);
+                    mediaDialog->selectMediaByMessageId(msgId);
+                }
         });
 
+        messageController->getMediaItems(conversationId);
         mediaDialog->show();
     });
 
@@ -232,14 +238,14 @@ WeChatWidget::WeChatWidget(AppController * appController, QWidget *parent)
     connect(contactController, &ContactController::currentUserLoaded, this,
         [this](int reqId, const Contact& contact){
             currentUser = contact;
-            MediaResourceManager* mediaManager = MediaResourceManager::instance();
-            connect(mediaManager, &MediaResourceManager::mediaLoaded, this,
-                [this,mediaManager](const QString& resourcePath, const QPixmap& media, MediaType type){
-                QPixmap avatar = mediaManager->getMedia(currentUser.user.avatarLocalPath,
+            ThumbnailResourceManager* thumbnailManager = ThumbnailResourceManager::instance();
+            connect(thumbnailManager, &ThumbnailResourceManager::mediaLoaded, this,
+                [this,thumbnailManager](const QString& resourcePath, const QPixmap& media, MediaType type){
+                QPixmap avatar = thumbnailManager->getThumbnail(currentUser.user.avatarLocalPath,
                                                         QSize(500, 500), MediaType::Avatar, 60);
                 ui->avatarPushButton->setIcon(avatar);
             });
-            QPixmap avatar = mediaManager->getMedia(currentUser.user.avatarLocalPath,
+            QPixmap avatar = thumbnailManager->getThumbnail(currentUser.user.avatarLocalPath,
                                                     QSize(500, 500), MediaType::Avatar, 60);
             ui->avatarPushButton->setIcon(avatar);
     });
@@ -653,8 +659,8 @@ void WeChatWidget::on_rightDialogToolButton_clicked()
 
         // 在媒体加载器里异步获取头像
         QString avatarLocalPath = currentConversation.avatarLocalPath;
-        MediaResourceManager* mediaManager = MediaResourceManager::instance();
-        connect(mediaManager, &MediaResourceManager::mediaLoaded,
+        ThumbnailResourceManager* mediaManager = ThumbnailResourceManager::instance();
+        connect(mediaManager, &ThumbnailResourceManager::mediaLoaded,
             this, [this,avatarLocalPath](const QString& resourcePath, const QPixmap& media, MediaType type){
             if(avatarLocalPath == resourcePath && type == MediaType::Avatar){
                 if(rightPopover){
@@ -663,7 +669,7 @@ void WeChatWidget::on_rightDialogToolButton_clicked()
                 }
             }
         });
-        QPixmap friendAvatar = mediaManager->getMedia(avatarLocalPath, QSize(40, 40));
+        QPixmap friendAvatar = mediaManager->getThumbnail(avatarLocalPath, QSize(40, 40));
         rightPopover->findChild<QPushButton*>("rightAvatarButton")
             ->setIcon(QIcon(friendAvatar));
 

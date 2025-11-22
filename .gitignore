@@ -1,7 +1,6 @@
 build/
 tests/
 scripts/
-docs/
 *.o
 *.obj
 *.exe

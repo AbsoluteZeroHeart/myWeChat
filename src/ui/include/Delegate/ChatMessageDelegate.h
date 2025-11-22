@@ -4,7 +4,7 @@
 #include <QStyledItemDelegate>
 #include <QPainter>
 #include <QMouseEvent>
-#include "MediaResourceManager.h"
+#include "ThumbnailResourceManager.h"
 #include "Message.h"
 
 
@@ -87,7 +87,7 @@ private:
     static const int ICON_WIDTH = 29;
     static const int ICON_HEIGHT = 40;
 
-    MediaResourceManager *mediaManager;
+    ThumbnailResourceManager *thumbnailManager;
 };
 
 #endif // CHATMESSAGEDELEGATE_H

@@ -79,9 +79,9 @@ public:
 signals:
     // 操作结果信号
     void messageSaved();
-    void messageDeleted(int reqId, bool success, const QString& error = QString()); // 消息删除结果
-    void messagesLoaded(int reqId, const QList<Message>& messages, bool hasMore);   // 消息列表加载结果
-    void mediaItemsLoaded(int reqId, const QList<MediaItem>& items);                // 媒体项加载结果
+    void messageDeleted(bool success, const QString& error = QString()); // 消息删除结果
+    void messagesLoaded(const QList<Message>& messages, bool hasMore);   // 消息列表加载结果
+    void mediaItemsLoaded(const QList<MediaItem>& items);                // 媒体项加载结果
 
 
 

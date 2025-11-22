@@ -1,4 +1,4 @@
-# 提示：目前仅用于快速开发项目，懒得编译ffmpeg库了，之间简单使用，以后改。
+# 提示：目前仅用于快速开发项目，懒得编译ffmpeg库了，直接简单使用，以后改。
 
 find_path(FFMPEG_INCLUDE_DIR
     NAMES libavcodec/avcodec.h

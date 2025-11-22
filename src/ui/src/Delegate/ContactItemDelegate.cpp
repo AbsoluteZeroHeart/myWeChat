@@ -1,6 +1,6 @@
 #include "ContactItemDelegate.h"
 #include "Contact.h"
-#include "MediaResourceManager.h"
+#include "ThumbnailResourceManager.h"
 #include <qabstractitemview.h>
 #include <qpainterpath.h>
 
@@ -8,8 +8,8 @@ ContactItemDelegate::ContactItemDelegate(ContactTreeModel *model, QObject *paren
     : QStyledItemDelegate(parent)
     , m_model(model)
 {
-    MediaResourceManager* mediaManager = MediaResourceManager::instance();
-    connect(mediaManager, &MediaResourceManager::mediaLoaded,
+    ThumbnailResourceManager* thumbnailManager = ThumbnailResourceManager::instance();
+    connect(thumbnailManager, &ThumbnailResourceManager::mediaLoaded,
             this, &ContactItemDelegate::onMediaLoaded);
 }
 
@@ -70,10 +70,10 @@ void ContactItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
 
     // 绘制头像
     QRect avatarRect(rect.left() + margin, rect.center().y()-avatarSize/2, avatarSize, avatarSize);
-    MediaResourceManager* mediaManager = MediaResourceManager::instance();
+    ThumbnailResourceManager* mediaManager = ThumbnailResourceManager::instance();
     painter->setRenderHint(QPainter::Antialiasing,true);
 
-    QPixmap avatar = mediaManager->getMedia(contact.user.avatarLocalPath, QSize(avatarSize, avatarSize));
+    QPixmap avatar = mediaManager->getThumbnail(contact.user.avatarLocalPath, QSize(avatarSize, avatarSize));
 
     if(!avatar.isNull()) {
         painter->drawPixmap(avatarRect, avatar);

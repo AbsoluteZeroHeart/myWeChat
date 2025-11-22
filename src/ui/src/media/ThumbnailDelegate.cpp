@@ -13,8 +13,8 @@ ThumbnailDelegate::ThumbnailDelegate(QObject *parent)
     m_cornerRadius(5),
     m_videoIndicatorSize(20)
 {
-    mediaManager = MediaResourceManager::instance();
-    connect(mediaManager, &MediaResourceManager::mediaLoaded,
+    mediaManager = ThumbnailResourceManager::instance();
+    connect(mediaManager, &ThumbnailResourceManager::mediaLoaded,
             this, &ThumbnailDelegate::onMediaLoaded);
 }
 
@@ -40,7 +40,7 @@ void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
     MediaItem item = index.data(ThumbnailPreviewModel::FullMediaRole).value<MediaItem>();
     MediaType mediaType = (item.mediaType=="video")? MediaType::VideoThumb : MediaType::ImageThumb;
     QSize thumbSize = QSize(50,50);
-    QPixmap thumbnail = mediaManager->getMedia(item.sourceMediaPath, thumbSize, mediaType, 5, item.thumbnailPath );
+    QPixmap thumbnail = mediaManager->getThumbnail(item.sourceMediaPath, thumbSize, mediaType, 5, item.thumbnailPath );
 
     QPoint thumbPos(rect.x() + (rect.width() - thumbSize.width()) / 2,
                     rect.y() + 5);

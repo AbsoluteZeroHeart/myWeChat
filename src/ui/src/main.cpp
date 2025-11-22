@@ -12,7 +12,7 @@
 #include "User.h"
 #include "Contact.h"
 #include "Conversation.h"
-#include "MediaResourceManager.h"
+#include "ThumbnailResourceManager.h"
 #include <QMessageBox>
 #include "LoginAndRegisterDialog.h"
 #include "LoginAndRegisterController.h"
@@ -80,8 +80,8 @@ int main(int argc, char *argv[])
     delete appInit;
     delete initController;
 
-    // 显式清理MediaResourceManager,防止QGuiApplication 销毁后还在处理 QPixmap，造成崩溃
-    MediaResourceManager::cleanup();
+    // 显式清理ThumbnailResourceManager,防止QGuiApplication 销毁后还在处理 QPixmap，造成崩溃
+    ThumbnailResourceManager::cleanup();
 
     return result;
 }

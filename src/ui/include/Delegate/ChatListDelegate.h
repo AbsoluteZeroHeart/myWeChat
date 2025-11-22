@@ -1,5 +1,5 @@
 #include <QStyledItemDelegate>
-#include "MediaResourceManager.h"
+#include "ThumbnailResourceManager.h"
 
 class ChatListDelegate : public QStyledItemDelegate 
 {

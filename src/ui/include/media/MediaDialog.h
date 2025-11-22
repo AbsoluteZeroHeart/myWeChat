@@ -16,6 +16,9 @@ class ThumbnailDelegate;
 class ThumbnailPreviewModel;
 class ThumbnailListView;
 struct MediaItem;
+class ThumbnailResourceManager;
+enum class MediaType;
+
 
 class MediaDialog : public QDialog
 {
@@ -55,6 +58,7 @@ private slots:
     void on_thumbnailPreviewButton_clicked();
     void onCurrentChanged(const QModelIndex &current, const QModelIndex &previous);
 
+    void onMediaLoaded(const QString& resourcePath, const QPixmap& media, MediaType type);
 private:
     Ui::MediaDialog *ui;
     QSplitter *splitter;
@@ -81,6 +85,8 @@ private:
     QPoint m_lastMousePos;
     CustomGraphicsView *m_graphicsView; // 已封装好场景等等 的视图
 
+    ThumbnailResourceManager *thumbnailResourceManager;
+
     // 视频相关
     VideoPlayer * m_videoPlayer;
 
@@ -94,6 +100,8 @@ private:
     void updateCursorShape(const QPoint &pos);
     void titleBarSize();
     void mediaSize();
+
+    QString currentImgPath;
 
 };
 

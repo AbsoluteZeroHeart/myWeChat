@@ -4,7 +4,7 @@
 #include "ContactTreeModel.h"
 #include <QStyledItemDelegate>
 #include <QPainter>
-#include "MediaResourceManager.h"
+#include "ThumbnailResourceManager.h"
 
 
 class ContactItemDelegate : public QStyledItemDelegate

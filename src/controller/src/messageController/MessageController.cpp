@@ -295,7 +295,7 @@ void MessageController::loadMoreMessages(int limit)
 void MessageController::getMediaItems(qint64 conversationId)
 {
     if (!messageTable) {
-        emit mediaItemsLoaded(-1, QList<MediaItem>());
+        emit mediaItemsLoaded(QList<MediaItem>());
         return;
     }
 
@@ -398,7 +398,7 @@ void MessageController::onMessageSaved(int reqId, bool ok, QString reason)
 
 void MessageController::onMessageDeleted(int reqId, bool success, const QString& error)
 {
-    emit messageDeleted(reqId, success, error);
+    emit messageDeleted(success, error);
 }
 
 void MessageController::onMessagesLoaded(int reqId, const QVector<Message>& messages)
@@ -422,7 +422,7 @@ void MessageController::onMessagesLoaded(int reqId, const QVector<Message>& mess
 
 void MessageController::onMediaItemsLoaded(int reqId, const QList<MediaItem>& items)
 {
-    emit mediaItemsLoaded(reqId, items);
+    emit mediaItemsLoaded(items);
 }
 
 void MessageController::onDbError(int reqId, const QString& error)
