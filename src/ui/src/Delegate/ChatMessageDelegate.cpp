@@ -12,8 +12,8 @@
 ChatMessageDelegate::ChatMessageDelegate(QObject *parent)
     : QStyledItemDelegate(parent)
 {
-    mediaManager = MediaResourceManager::instance();
-    connect(mediaManager, &MediaResourceManager::mediaLoaded,
+    thumbnailManager = ThumbnailResourceManager::instance();
+    connect(thumbnailManager, &ThumbnailResourceManager::mediaLoaded,
             this, &ChatMessageDelegate::onMediaLoaded);
 }
 
@@ -89,12 +89,12 @@ QSize ChatMessageDelegate::sizeHint(const QStyleOptionViewItem &option,
         return QSize(width, qMax(avatarAreaHeight, contentAreaHeight));
     }
     case MessageType::IMAGE: {
-        QPixmap thumbnail = mediaManager->getMedia(message.filePath, QSize(200, 300),
+        QPixmap thumbnail = thumbnailManager->getThumbnail(message.filePath, QSize(200, 300),
                                              MediaType::ImageThumb,0, message.thumbnailPath);
         return QSize(width, thumbnail.height() + timeHeight + 2 * margin);
     }
     case MessageType::VIDEO: {
-        QPixmap thumbnail = mediaManager->getMedia(message.filePath, QSize(200, 300),
+        QPixmap thumbnail = thumbnailManager->getThumbnail(message.filePath, QSize(200, 300),
                                              MediaType::ImageThumb,0,message.thumbnailPath);
 
         return QSize(width, thumbnail.height() + timeHeight + 2 * margin);
@@ -263,7 +263,7 @@ void ChatMessageDelegate::paintTextMessage(QPainter *painter, const QStyleOption
 void ChatMessageDelegate::paintImageMessage(QPainter *painter, const QStyleOptionViewItem &option,
                                             const Message &message, bool isOwn) const
 {
-    QPixmap  thumbnail = mediaManager->getMedia(message.filePath, QSize(200, 300),
+    QPixmap  thumbnail = thumbnailManager->getThumbnail(message.filePath, QSize(200, 300),
                                         MediaType::ImageThumb,0, message.thumbnailPath);
 
     painter->save();
@@ -309,7 +309,7 @@ void ChatMessageDelegate::paintImageMessage(QPainter *painter, const QStyleOptio
 void ChatMessageDelegate::paintVideoMessage(QPainter *painter, const QStyleOptionViewItem &option,
                                             const Message &message,bool isOwn) const
 {
-    QPixmap thumbnail = mediaManager->getMedia(message.filePath, QSize(200, 300),
+    QPixmap thumbnail = thumbnailManager->getThumbnail(message.filePath, QSize(200, 300),
                                           MediaType::VideoThumb, 0 , message.thumbnailPath);
 
     painter->save();
@@ -618,7 +618,7 @@ void ChatMessageDelegate::paintAvatar(QPainter *painter, const QRect &avatarRect
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    QPixmap avatarPixmap = mediaManager->getMedia(message.avatar,
+    QPixmap avatarPixmap = thumbnailManager->getThumbnail(message.avatar,
                                                  avatarRect.size(), 
                                                  MediaType::Avatar, 5);
     
@@ -894,7 +894,7 @@ QRect ChatMessageDelegate::getClickableRect(const QStyleOptionViewItem &option,
     switch (message.type) {
     case MessageType::IMAGE:
     case MessageType::VIDEO: {
-        QPixmap thumbnail = mediaManager->getMedia(message.filePath, QSize(200, 300),
+        QPixmap thumbnail = thumbnailManager->getThumbnail(message.filePath, QSize(200, 300),
                                                    MediaType::ImageThumb,0, message.thumbnailPath);
         if (isOwnMessage) {
             return QRect(option.rect.right() - avatarSize - thumbnail.width() - 2 * margin,

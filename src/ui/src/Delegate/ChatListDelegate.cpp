@@ -10,8 +10,8 @@
 ChatListDelegate::ChatListDelegate(QObject *parent) 
     : QStyledItemDelegate(parent)
 {
-    MediaResourceManager* mediaManager = MediaResourceManager::instance();
-    connect(mediaManager, &MediaResourceManager::mediaLoaded,
+    ThumbnailResourceManager* thumbnailManager = ThumbnailResourceManager::instance();
+    connect(thumbnailManager, &ThumbnailResourceManager::mediaLoaded,
             this, &ChatListDelegate::onMediaLoaded);
 }
 
@@ -87,10 +87,10 @@ void ChatListDelegate::paint(QPainter *painter, const QStyleOptionViewItem
     painter->drawText(timeRect, Qt::AlignLeft|Qt::AlignVCenter,timeText);
 
     //画-头像
-    MediaResourceManager* mediaManager = MediaResourceManager::instance();
+    ThumbnailResourceManager* thumbnailManager = ThumbnailResourceManager::instance();
     painter->setRenderHint(QPainter::Antialiasing,true);
 
-    QPixmap avatar = mediaManager->getMedia(avatarPath, QSize(avatarSize, avatarSize));
+    QPixmap avatar = thumbnailManager->getThumbnail(avatarPath, QSize(avatarSize, avatarSize));
      if(!avatar.isNull()) {
         painter->drawPixmap(avatarRect, avatar);
     } else {

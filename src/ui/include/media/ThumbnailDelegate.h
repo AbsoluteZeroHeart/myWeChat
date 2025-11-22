@@ -3,7 +3,7 @@
 
 #include <QStyledItemDelegate>
 #include <QSize>
-#include "MediaResourceManager.h"
+#include "ThumbnailResourceManager.h"
 
 class ThumbnailDelegate : public QStyledItemDelegate
 {
@@ -33,7 +33,7 @@ private slots:
 private:
     int m_cornerRadius;            // 圆角半径
     int m_videoIndicatorSize;      // 视频指示器大小
-    MediaResourceManager *mediaManager;
+    ThumbnailResourceManager *mediaManager;
 
 };
 

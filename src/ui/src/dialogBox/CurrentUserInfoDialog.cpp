@@ -1,5 +1,5 @@
 #include "CurrentUserInfoDialog.h"
-#include "MediaResourceManager.h"
+#include "ThumbnailResourceManager.h"
 #include "ui_CurrentUserInfoDialog.h"
 #include <QPainter>
 #include <QPainterPath>
@@ -23,17 +23,17 @@ CurrentUserInfoDialog::~CurrentUserInfoDialog()
 void CurrentUserInfoDialog::setCurrentUser(const Contact &user)
 {
     currentUser = user;
-    MediaResourceManager* mediaManager = MediaResourceManager::instance();
+    ThumbnailResourceManager* thumbnailManager = ThumbnailResourceManager::instance();
 
-    connect(mediaManager, &MediaResourceManager::mediaLoaded, this,
-        [this, mediaManager](const QString& resourcePath, const QPixmap& media, MediaType type){
+    connect(thumbnailManager, &ThumbnailResourceManager::mediaLoaded, this,
+        [this, thumbnailManager](const QString& resourcePath, const QPixmap& media, MediaType type){
 
-        QPixmap avatar = mediaManager->getMedia(currentUser.user.avatarLocalPath,
+        QPixmap avatar = thumbnailManager->getThumbnail(currentUser.user.avatarLocalPath,
                                                 QSize(500, 500), MediaType::Avatar,0);
         avatarLabel ->setPixmap(avatar);
     });
 
-    QPixmap avatar = mediaManager->getMedia(currentUser.user.avatarLocalPath,
+    QPixmap avatar = thumbnailManager->getThumbnail(currentUser.user.avatarLocalPath,
                                             QSize(500, 500), MediaType::Avatar,0);
     avatarLabel ->setPixmap(avatar);
     account->setText(currentUser.user.account);

@@ -18,6 +18,7 @@
 #include "ThumbnailDelegate.h"
 #include "ThumbnailPreviewModel.h"
 #include "ThumbnailListView.h"
+#include "ThumbnailResourceManager.h"
 
 MediaDialog::MediaDialog(QWidget *parent)
     : QDialog(parent)
@@ -31,6 +32,7 @@ MediaDialog::MediaDialog(QWidget *parent)
     , m_currentEdge(None)
     , m_isResizing(false)
     , m_borderWidth(8)
+    , thumbnailResourceManager(new ThumbnailResourceManager(this))
     // 媒体
 
 {
@@ -77,6 +79,8 @@ MediaDialog::MediaDialog(QWidget *parent)
 
     titleBarSize(); // 动态设置标题栏位置大小
     mediaSize(); // 动态设置媒体区域大小
+
+    connect(thumbnailResourceManager, &ThumbnailResourceManager::mediaLoaded, this, &MediaDialog::onMediaLoaded);
 
 }
 
@@ -423,7 +427,9 @@ void MediaDialog::playMedia(const QString &path, const QString &mediaTytpe)
         mediaStackedWidget->setCurrentWidget(m_videoPlayer);
     }else if (mediaTytpe=="image") {
         m_videoPlayer->stop();
-        m_graphicsView->loadImage(path);
+        currentImgPath = path;
+        QPixmap img = thumbnailResourceManager->getThumbnail(path, QSize(), MediaType::OriginalImage);
+        m_graphicsView->loadImage(img);
         mediaStackedWidget->setCurrentWidget(m_graphicsView);
     }
 }
@@ -504,7 +510,7 @@ void MediaDialog::onCurrentChanged(const QModelIndex &current, const QModelIndex
         if(fileInfo.exists() && fileInfo.isFile()){
             playMedia(sourcePath, mediaType);
         }else{
-            QPixmap warningPix = MediaResourceManager::getWarningThumbnail(thumbPath, mediaType);
+            QPixmap warningPix = ThumbnailResourceManager::getWarningThumbnail(thumbPath, mediaType);
             mediaStackedWidget->setCurrentWidget(m_graphicsView);
             m_graphicsView->loadImage(warningPix);
         }
@@ -534,5 +540,13 @@ void MediaDialog::selectMediaByMessageId(qint64 messageId)
     }
 }
 
+
+void MediaDialog::onMediaLoaded(const QString& resourcePath, const QPixmap& media, MediaType type)
+{
+    if(currentImgPath == resourcePath){
+        m_graphicsView->loadImage(media);
+        mediaStackedWidget->setCurrentWidget(m_graphicsView);
+    }
+}
 
 

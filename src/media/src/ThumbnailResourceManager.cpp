@@ -1,4 +1,4 @@
-#include "MediaResourceManager.h"
+#include "ThumbnailResourceManager.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QTimer>
@@ -8,13 +8,13 @@
 #include <QIcon>
 #include <QStyle>
 
-MediaResourceManager* MediaResourceManager::instance()
+ThumbnailResourceManager* ThumbnailResourceManager::instance()
 {
-    static MediaResourceManager instance;
+    static ThumbnailResourceManager instance;
     return &instance;
 }
 
-MediaResourceManager::MediaResourceManager(QObject* parent)
+ThumbnailResourceManager::ThumbnailResourceManager(QObject* parent)
     : QObject(parent)
     , m_cache(200*1024)
 {
@@ -29,12 +29,13 @@ MediaResourceManager::MediaResourceManager(QObject* parent)
     cleanupTimer->start(600000);
 }
 
-MediaResourceManager::~MediaResourceManager()
+ThumbnailResourceManager::~ThumbnailResourceManager()
 {
     m_threadPool.waitForDone();
+    clearCache();
 }
 
-QPixmap MediaResourceManager::getMedia(const QString& resourcePath, const QSize& size,
+QPixmap ThumbnailResourceManager::getThumbnail(const QString& resourcePath, const QSize& size,
                                        MediaType type, int radius, const QString& iconPath)
 {
     if(resourcePath.isEmpty()) {
@@ -58,7 +59,7 @@ QPixmap MediaResourceManager::getMedia(const QString& resourcePath, const QSize&
         m_loadingMap[cacheKey] = true;
 
         // 启动异步加载
-        MediaLoadTask* task = new MediaLoadTask(resourcePath, size, type, radius, cacheKey, this, iconPath);
+        ThumbnailLoadTask* task = new ThumbnailLoadTask(resourcePath, size, type, radius, cacheKey, this, iconPath);
         m_threadPool.start(task);
     }
 
@@ -67,7 +68,7 @@ QPixmap MediaResourceManager::getMedia(const QString& resourcePath, const QSize&
     return QPixmap();
 }
 
-QPixmap MediaResourceManager::getPixmap(const QSize &size)
+QPixmap ThumbnailResourceManager::getPixmap(const QSize &size)
 {
     QPixmap pixmap(100,100);
     pixmap.fill(QColor(255, 255, 255)); // 浅灰色背景
@@ -79,7 +80,7 @@ QPixmap MediaResourceManager::getPixmap(const QSize &size)
     return pixmap;
 }
 
-void MediaResourceManager::preloadMedia(const QString& resourcePath, const QSize& size,
+void ThumbnailResourceManager::preloadThumbnail(const QString& resourcePath, const QSize& size,
                                         MediaType type, int radius, const QString& iconPath)
 {
     if(resourcePath.isEmpty()) return;
@@ -99,36 +100,18 @@ void MediaResourceManager::preloadMedia(const QString& resourcePath, const QSize
     }
 
     m_loadingMap[cacheKey] = true;
-    MediaLoadTask* task = new MediaLoadTask(resourcePath, size, type, radius, cacheKey, this, iconPath);
+    ThumbnailLoadTask* task = new ThumbnailLoadTask(resourcePath, size, type, radius, cacheKey, this, iconPath);
     m_threadPool.start(task);
 }
 
-QPixmap MediaResourceManager::processThumbnail(const QString& resourcePath, const QString& iconPath,
-                                               const QSize& size, MediaType type)
-{
-    QFileInfo originalFile(resourcePath);
-    bool originalExists = originalFile.exists()&&originalFile.isReadable();
-
-    if (originalExists) {
-        QImage iconImage(iconPath);
-        if (iconImage.isNull()) {
-            return createDefaultThumbnail(size, type);
-        } else {
-            return processMedia(iconImage, size, type, 0, originalExists);
-        }
-    } else {
-        return getWarningThumbnail(iconPath,
-                                                     type == MediaType::ImageThumb ? "image" : "video");
-    }
-}
-
 // 处理原图片
-QPixmap MediaResourceManager::processOriginalImage(const QImage& image, QSize size)
+QPixmap ThumbnailResourceManager::processOriginalImage(const QString &resourcePath)
 {
-    return QPixmap::fromImage(image.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    QImage image(resourcePath);
+    return QPixmap::fromImage(image);
 }
 
-QPixmap MediaResourceManager::createDefaultThumbnail(const QSize& size, MediaType type, const QString& text)
+QPixmap ThumbnailResourceManager::createDefaultThumbnail(const QSize& size, MediaType type, const QString& text)
 {
     QPixmap pixmap(size);
     pixmap.fill(QColor(50, 50, 50)); // 灰色背景
@@ -146,7 +129,7 @@ QPixmap MediaResourceManager::createDefaultThumbnail(const QSize& size, MediaTyp
     return pixmap;
 }
 
-void MediaResourceManager::addPlayButton(QPixmap& pixmap)
+void ThumbnailResourceManager::addPlayButton(QPixmap& pixmap)
 {
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
@@ -165,7 +148,7 @@ void MediaResourceManager::addPlayButton(QPixmap& pixmap)
     painter.drawPolygon(triangle);
 }
 
-void MediaResourceManager::addTextIndicator(QPixmap& pixmap, const QString& text)
+void ThumbnailResourceManager::addTextIndicator(QPixmap& pixmap, const QString& text)
 {
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
@@ -178,27 +161,28 @@ void MediaResourceManager::addTextIndicator(QPixmap& pixmap, const QString& text
     painter.drawText(pixmap.rect(), Qt::AlignCenter, text);
 }
 
-QPixmap MediaResourceManager::processMedia(const QImage& image, const QSize& size,
-                                           MediaType type, int radius, bool isOriginalExists)
+QPixmap ThumbnailResourceManager::processThumbnail(const QString &resourcePath, const QSize& size,
+                                                   MediaType type, int radius, const QString &iconPath)
 {
     switch(type) {
     case MediaType::Avatar:
-        return processAvatar(image, size, radius);
+        return processAvatar(resourcePath, size, radius);
     case MediaType::ImageThumb:
-        return processImageThumb(image, size, isOriginalExists);
+        return processImageThumb(resourcePath, size, iconPath);
     case MediaType::VideoThumb:
-        return processVideoThumb(image, size, isOriginalExists);
-    case MediaType::FileIcon:
-        return QPixmap::fromImage(image.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    case MediaType::OriginalImage:  // 原图片处理
-        return processOriginalImage(image, size);
+        return processVideoThumb(resourcePath, size, iconPath);
+    case MediaType::OriginalImage:
+        return processOriginalImage(resourcePath);
     default:
-        return QPixmap::fromImage(image.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        return QPixmap();
     }
 }
 
-QPixmap MediaResourceManager::processAvatar(const QImage& image, const QSize& size, int radius)
+QPixmap ThumbnailResourceManager::processAvatar(const QString &resourcePath, const QSize& size,
+                                                int radius)
 {
+    QImage image(resourcePath);
+    if(image.isNull()) return QPixmap(size);
     QImage scaledImage = image.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
 
     QPixmap result(size);
@@ -218,38 +202,45 @@ QPixmap MediaResourceManager::processAvatar(const QImage& image, const QSize& si
     return result;
 }
 
-QPixmap MediaResourceManager::processImageThumb(const QImage& image, const QSize& size, bool isOriginalExists)
+QPixmap ThumbnailResourceManager::processImageThumb(const QString &resourcePath, const QSize& size,
+                                                    const QString &iconPath)
 {
-    // 如果size为空，返回原图
-    if (size.isEmpty()) {
-        return QPixmap::fromImage(image);
+    // 如果原图片不存在，返回过去警告缩略图
+    if(!QFileInfo::exists(resourcePath)){
+        return getWarningThumbnail(iconPath, "image");
+    }
+
+    QImage image(iconPath);
+    // 在原图存在但缩略图不存在时返回默认缩略图
+    if(image.isNull()){
+        return createDefaultThumbnail(size, MediaType::ImageThumb);
     }
 
     QPixmap result = QPixmap::fromImage(image.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    return result;
+}
 
-    if (isOriginalExists && image.isNull()) {
-        addTextIndicator(result, "图片");
+QPixmap ThumbnailResourceManager::processVideoThumb(const QString &resourcePath, const QSize& size,
+                                                    const QString &iconPath)
+{
+    // 如果原视频不存在，则返回过期警告缩略图
+    if(!QFileInfo::exists(resourcePath)){
+        return getWarningThumbnail(iconPath, "video");
     }
+
+    QImage image(iconPath);
+    // 在原视频存在但缩略图不存在时返回默认缩略图
+    if(image.isNull()){
+        return createDefaultThumbnail(size, MediaType::VideoThumb);
+    }
+
+    QPixmap result = QPixmap::fromImage(image.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    addPlayButton(result);    // 添加播放按钮
 
     return result;
 }
 
-QPixmap MediaResourceManager::processVideoThumb(const QImage& image, const QSize& size, bool isOriginalExists)
-{
-    // 如果size为空，返回原图
-    if (size.isEmpty()) {
-        return QPixmap::fromImage(image);
-    }
-
-    QPixmap result = QPixmap::fromImage(image.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-
-    // 添加播放按钮
-    addPlayButton(result);
-
-    return result;
-}
-
-QString MediaResourceManager::generateCacheKey(const QString& path, const QSize& size,
+QString ThumbnailResourceManager::generateCacheKey(const QString& path, const QSize& size,
                                                MediaType type, int radius, const QString& iconPath) const
 {
     QString baseKey = QString("%1_%2_%3_%4")
@@ -272,22 +263,29 @@ QString MediaResourceManager::generateCacheKey(const QString& path, const QSize&
 }
 
 // 估算缓存成本
-int MediaResourceManager::estimateCacheCost(const QPixmap& pixmap) const
-{
-    if (pixmap.isNull()) {
-        return 1;
+inline int ThumbnailResourceManager::estimateCacheCost(const QPixmap& pixmap) const noexcept {
+    // 定义常量，提升可维护性
+    static constexpr int MIN_CACHE_COST = 1;
+    static constexpr int BYTES_PER_KB = 1024;
+
+    // 空图片/无效尺寸直接返回最小成本
+    if (pixmap.isNull() || pixmap.width() <= 0 || pixmap.height() <= 0) {
+        return MIN_CACHE_COST;
     }
 
-    // 估算图片占用的内存大小（字节）
-    int cost = pixmap.width() * pixmap.height() * pixmap.depth() / 8;
+    // QPixmap转QImage，通过QImage获取实际字节数
+    const QImage image = pixmap.toImage();
+    const qint64 total_bytes = image.sizeInBytes();
+    qDebug()<<total_bytes<<"字节";
 
-    // 转换为KB，并确保最小成本为1
-    cost = qMax(1, cost / 1024);
+    // 转换为KB，确保最小成本为1（64位计算避免溢出）
+    const int cost_kb = static_cast<int>(qMax<qint64>(MIN_CACHE_COST, total_bytes / BYTES_PER_KB));
 
-    return cost;
+    qDebug()<<cost_kb;
+    return cost_kb;
 }
 
-void MediaResourceManager::onMediaLoaded(const QString& cacheKey, const QString& resourcePath,
+void ThumbnailResourceManager::onMediaLoaded(const QString& cacheKey, const QString& resourcePath,
                                          const QPixmap& media, MediaType type, bool success)
 {
     {
@@ -312,25 +310,25 @@ void MediaResourceManager::onMediaLoaded(const QString& cacheKey, const QString&
     }
 }
 
-void MediaResourceManager::cancelLoading(const QString& cacheKey)
+void ThumbnailResourceManager::cancelLoading(const QString& cacheKey)
 {
     QMutexLocker locker(&m_mutex);
     m_loadingMap.remove(cacheKey);
 }
 
-void MediaResourceManager::clearCache()
+void ThumbnailResourceManager::clearCache()
 {
     QMutexLocker locker(&m_mutex);
     m_cache.clear();
 }
 
-void MediaResourceManager::setCacheSize(int maxSize)
+void ThumbnailResourceManager::setCacheSize(int maxSize)
 {
     QMutexLocker locker(&m_mutex);
     m_cache.setMaxCost(maxSize);
 }
 
-void MediaResourceManager::cleanupOldResources(qint64 maxAgeMs)
+void ThumbnailResourceManager::cleanupOldResources(qint64 maxAgeMs)
 {
     QMutexLocker locker(&m_mutex);
     qint64 now = QDateTime::currentMSecsSinceEpoch();
@@ -349,7 +347,9 @@ void MediaResourceManager::cleanupOldResources(qint64 maxAgeMs)
     }
 }
 
-QPixmap MediaResourceManager::getWarningThumbnail(const QString& thumbnailPath,const QString &mediaType, const QSize &size)
+// 创建警告缩略图
+QPixmap ThumbnailResourceManager::getWarningThumbnail(const QString& thumbnailPath,
+                                                      const QString &mediaType, const QSize &size)
 {
     if(!QFileInfo::exists(thumbnailPath)){
         return createDefaultExpiredThumbnail({100,100}, mediaType);
@@ -357,7 +357,8 @@ QPixmap MediaResourceManager::getWarningThumbnail(const QString& thumbnailPath,c
     return  createExpiredThumbnail(QPixmap(thumbnailPath), mediaType, size);
 }
 
-QPixmap MediaResourceManager::createDefaultExpiredThumbnail(const QSize& size, const QString& mediaType)
+QPixmap ThumbnailResourceManager::createDefaultExpiredThumbnail(const QSize& size,
+                                                                const QString& mediaType)
 {
     QPixmap resultPixmap(size);
     resultPixmap.fill(QColor(80, 80, 80));
@@ -396,7 +397,8 @@ QPixmap MediaResourceManager::createDefaultExpiredThumbnail(const QSize& size, c
     return resultPixmap;
 }
 
-QPixmap MediaResourceManager::createExpiredThumbnail(const QPixmap& baseThumbnail, const QString& mediaType, const QSize size)
+QPixmap ThumbnailResourceManager::createExpiredThumbnail(const QPixmap& baseThumbnail,
+                                                         const QString& mediaType, const QSize size)
 {
     if(baseThumbnail.isNull())return QPixmap();
     QPixmap resultPixmap = baseThumbnail.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
