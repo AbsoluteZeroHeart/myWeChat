@@ -24,12 +24,8 @@ QT开发客户端，（目前还没做后端）。具备方式文本信息、图
 | ![截图3](docs/testImage/3.png) | ![截图4](docs/testImage/4.png) |
 
 ## 二、演示视频
-<video width="800" height="450" controls>
-  <source src="docs/testImage/test.mp4" type="video/mp4">
-  你的浏览器不支持 HTML5 视频播放，请下载视频查看：<a href="docs/testImage/test.mp4">test.mp4</a>
-</video>
 
-<a href="docs/testImage/test.mp4">
-  <img src="docs/testImage/1.png" alt="视频封面" width="800">
+<a href="https://www.bilibili.com/video/BV1hLUWBgEmW/?share_source=copy_web&vd_source=7c6fa4d409af9007042bf28e483b4dac" target="_blank" rel="noopener noreferrer">
+  打开视频
 </a>
-> 点击封面查看演示视频
+
