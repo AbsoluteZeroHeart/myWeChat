@@ -263,7 +263,7 @@ QString ThumbnailResourceManager::generateCacheKey(const QString& path, const QS
 }
 
 // 估算缓存成本
-inline int ThumbnailResourceManager::estimateCacheCost(const QPixmap& pixmap) const noexcept {
+int ThumbnailResourceManager::estimateCacheCost(const QPixmap& pixmap) const noexcept {
     // 定义常量，提升可维护性
     static constexpr int MIN_CACHE_COST = 1;
     static constexpr int BYTES_PER_KB = 1024;

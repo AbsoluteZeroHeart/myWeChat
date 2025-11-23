@@ -99,7 +99,7 @@ private:
     static void addTextIndicator(QPixmap& pixmap, const QString& text);    // 添加文字标识
 
     QString generateCacheKey(const QString& path, const QSize& size, MediaType type, int radius, const QString& iconPath = QString()) const;
-    inline int estimateCacheCost(const QPixmap& pixmap) const noexcept ;
+    int estimateCacheCost(const QPixmap& pixmap) const noexcept ;
 
     QCache<QString, MediaCacheItem> m_cache;
     QMap<QString, bool> m_loadingMap;  // key: cacheKey, value: 是否正在加载
