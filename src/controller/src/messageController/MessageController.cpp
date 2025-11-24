@@ -371,8 +371,13 @@ void MessageController::handleDelete(const Message &message)
         return;
     }
 
-    // 先从模型移除
+    // 先从模型和文件系统移除
     m_messagesModel->removeMessageById(message.messageId);
+    QFile file(message.filePath);
+    QFile thumbnail(message.thumbnailPath);
+
+    file.remove();
+    thumbnail.remove();
 
     // 异步从数据库删除
     int reqId = generateReqId();

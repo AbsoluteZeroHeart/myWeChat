@@ -511,6 +511,7 @@ void MediaDialog::onCurrentChanged(const QModelIndex &current, const QModelIndex
         if(fileInfo.exists() && fileInfo.isFile()){
             playMedia(sourcePath, mediaType);
         }else{
+            m_videoPlayer->stop();
             QPixmap warningPix = ThumbnailResourceManager::getWarningThumbnail(thumbPath, mediaType);
             mediaStackedWidget->setCurrentWidget(m_graphicsView);
             m_graphicsView->loadImage(warningPix);
