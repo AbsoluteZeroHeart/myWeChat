@@ -67,6 +67,7 @@ target_link_libraries(myWeChat PRIVATE
     common
     controller
     media
+    test
 )
 
 # 平台特定设置

@@ -20,6 +20,7 @@ struct Message {
     qint64 messageId = 0;
     qint64 conversationId = 0;
     qint64 senderId = 0;
+    qint64 consigneeId = 0;
     MessageType type = MessageType::TEXT;
     QString content;
     QString filePath;
@@ -39,6 +40,7 @@ struct Message {
         messageId = query.value("message_id").toLongLong();
         conversationId = query.value("conversation_id").toLongLong();
         senderId = query.value("sender_id").toLongLong();
+        consigneeId = query.value("consignee_id").toLongLong();
         type = static_cast<MessageType>(query.value("type").toInt());
         content = query.value("content").toString();
         filePath = query.value("file_path").toString();
@@ -54,6 +56,7 @@ struct Message {
             {"message_id", QString::number(messageId)},
             {"conversation_id", QString::number(conversationId)},
             {"sender_id", QString::number(senderId)},
+            {"consignee_id", QString::number(consigneeId)},
             {"type", static_cast<int>(type)},
             {"content", content},
             {"file_path", filePath},
@@ -70,6 +73,7 @@ struct Message {
         msg.messageId = json["message_id"].toString().toLongLong();
         msg.conversationId = json["conversation_id"].toString().toLongLong();
         msg.senderId = json["sender_id"].toString().toLongLong();
+        msg.consigneeId = json["consignee_id"].toString().toLongLong();
         msg.type = static_cast<MessageType>(json["type"].toInt());
         msg.content = json["content"].toString();
         msg.filePath = json["file_path"].toString();

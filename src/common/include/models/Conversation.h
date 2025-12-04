@@ -70,11 +70,11 @@ struct Conversation {
     }
 
     bool isValid() const {
-        return conversationId > 0 && !title.isEmpty();
+        return conversationId > -1 ;
     }
 
     // 判断是否为群聊
-    bool isGroup() const { return type == 1; }
+    bool isGroup() const { return type == 1 && groupId>-1; }
 
     // 获取目标ID（根据会话类型返回对应的ID）
     qint64 targetId() const { return isGroup() ? groupId : userId; }

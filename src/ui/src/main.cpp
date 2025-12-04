@@ -16,7 +16,7 @@
 #include <QMessageBox>
 #include "LoginAndRegisterDialog.h"
 #include "LoginAndRegisterController.h"
-
+#include "TestWidget.h"
 
 
 
@@ -53,8 +53,9 @@ int main(int argc, char *argv[])
     LoginAndRegisterDialog loginAndRegisterDialog(&loginAndRegisterController);
     if(loginAndRegisterDialog.exec() == QDialog::Accepted){
         qDebug()<<"登录成功-----";
+    }else {
+        return app.exec();
     }
-
 
     DatabaseInitializationController* initController = new DatabaseInitializationController();
     AppInitialize* appInit = new AppInitialize(initController);
@@ -63,15 +64,29 @@ int main(int argc, char *argv[])
     AppController* appController = nullptr;
     WeChatWidget* wechatWidget = nullptr;
 
+    TestWidget *testWidget;//测试
+
     QObject::connect(appInit, &AppInitialize::isInited, &app, [&](){
         databaseManager = new DatabaseManager();
         databaseManager->start();
         appController = new AppController(databaseManager);
+
+        // 测试----------------------------------------
+        testWidget = new TestWidget(appController);
+        testWidget->show();
+        // --------------------------------------------
+
+
         wechatWidget = new WeChatWidget(appController);
         wechatWidget->show();
     });
 
     appInit->initialize();
+
+
+
+
+
 
     int result = app.exec();
     delete wechatWidget;
@@ -79,6 +94,7 @@ int main(int argc, char *argv[])
     delete databaseManager;
     delete appInit;
     delete initController;
+    delete testWidget;
 
     // 显式清理ThumbnailResourceManager,防止QGuiApplication 销毁后还在处理 QPixmap，造成崩溃
     ThumbnailResourceManager::cleanup();

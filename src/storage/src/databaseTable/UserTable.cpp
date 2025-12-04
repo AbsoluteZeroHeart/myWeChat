@@ -18,13 +18,15 @@ UserTable::~UserTable()
     // 不需要手动关闭连接，智能指针会自动管理
 }
 
-void UserTable::init()
+bool UserTable::init()
 {
     m_database = DbConnectionManager::connectionForCurrentThread();
     if (!m_database || !m_database->isValid() || !m_database->isOpen()) {
         QString errorText = m_database ? m_database->lastError().text() : "Failed to get database connection";
         emit dbError(-1, QString("Open DB failed: %1").arg(errorText));
+        return false;
     }
+    return true;
 }
 
 bool UserTable::ensureDbOpen(int reqId)
@@ -37,48 +39,72 @@ bool UserTable::ensureDbOpen(int reqId)
 }
 
 // ----- 当前用户管理 -----
-void UserTable::saveCurrentUser(int reqId, const User &user)
+bool UserTable::saveCurrentUser(int reqId, const User &user)
 {
-    if (!ensureDbOpen(reqId)) { emit currentUserSaved(reqId, false, "Database not open"); return; }
+    // 1. 先确保数据库已打开，未打开则直接返回失败
+    if (!ensureDbOpen(reqId)) {
+        emit currentUserSaved(reqId, false, "Database not open");
+        return false;
+    }
 
+    // 2. 开启事务（所有操作要么全成功，要么全回滚，避免数据不一致）
     if (!m_database->transaction()) {
-        emit currentUserSaved(reqId, false, "Begin transaction failed");
-        return;
+        emit currentUserSaved(reqId, false, "Begin transaction failed: " + m_database->lastError().text());
+        return false;
     }
 
     try {
-        QSqlQuery clearQuery(*m_database);
-        clearQuery.prepare("UPDATE users SET is_current = 0 WHERE is_current = 1");
-        if (!clearQuery.exec()) {
-            throw std::runtime_error(clearQuery.lastError().text().toStdString());
+        // ---这里有bug，暂时只是测试，还不能改
+        QSqlQuery deleteOldCurrentQuery(*m_database);
+        const QString deleteSql = "DELETE FROM users WHERE is_current = 1";
+        if (!deleteOldCurrentQuery.exec(deleteSql)) {
+            throw std::runtime_error(
+                QString("Delete old current user failed: %1").arg(deleteOldCurrentQuery.lastError().text()).toStdString()
+                );
         }
 
-        QSqlQuery q(*m_database);
-        q.prepare(R"(
+        QSqlQuery insertNewUserQuery(*m_database);
+        const QString insertSql = R"(
             INSERT OR REPLACE INTO users
             (user_id, account, nickname, avatar, avatar_local_path, gender, region, signature, is_current)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        )");
-        q.addBindValue(user.userId);
-        q.addBindValue(user.account);
-        q.addBindValue(user.nickname);
-        q.addBindValue(user.avatar);
-        q.addBindValue(user.avatarLocalPath);
-        q.addBindValue(user.gender);
-        q.addBindValue(user.region);
-        q.addBindValue(user.signature);
-        q.addBindValue(1);
+        )";
+        insertNewUserQuery.prepare(insertSql);
+        // 绑定参数（与 User 结构体字段一一对应，避免SQL注入）
+        insertNewUserQuery.addBindValue(user.userId);
+        insertNewUserQuery.addBindValue(user.account);
+        insertNewUserQuery.addBindValue(user.nickname);
+        insertNewUserQuery.addBindValue(user.avatar);
+        insertNewUserQuery.addBindValue(user.avatarLocalPath);
+        insertNewUserQuery.addBindValue(user.gender);
+        insertNewUserQuery.addBindValue(user.region);
+        insertNewUserQuery.addBindValue(user.signature);
+        insertNewUserQuery.addBindValue(1); // 新用户标记为“当前用户”
 
-        if (!q.exec()) throw std::runtime_error(q.lastError().text().toStdString());
+        if (!insertNewUserQuery.exec()) {
+            throw std::runtime_error(
+                QString("Insert new current user failed: %1").arg(insertNewUserQuery.lastError().text()).toStdString()
+                );
+        }
 
-        if (!m_database->commit()) throw std::runtime_error(m_database->lastError().text().toStdString());
+        // -------------------------- 提交事务：所有操作成功后确认 --------------------------
+        if (!m_database->commit()) {
+            throw std::runtime_error(
+                QString("Commit transaction failed: %1").arg(m_database->lastError().text()).toStdString()
+                );
+        }
 
-        emit currentUserSaved(reqId, true, QString());
+        emit currentUserSaved(reqId, true, "Save current user success");
+        qInfo() << "[UserTable] Save current user success (user_id:" << user.userId << ")";
+        return true;
+
     } catch (const std::exception &e) {
+        // 异常处理：回滚事务，通知失败并打印错误日志
         m_database->rollback();
-        QString reason = QString::fromUtf8(e.what());
-        qCritical() << "Save current user failed:" << reason;
-        emit currentUserSaved(reqId, false, reason);
+        const QString errorReason = QString::fromUtf8(e.what());
+        qCritical() << "[UserTable] Save current user failed (reqId:" << reqId << "):" << errorReason;
+        emit currentUserSaved(reqId, false, errorReason);
+        return false;
     }
 }
 

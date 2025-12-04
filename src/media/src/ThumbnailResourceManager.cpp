@@ -35,8 +35,9 @@ ThumbnailResourceManager::~ThumbnailResourceManager()
     clearCache();
 }
 
+
 QPixmap ThumbnailResourceManager::getThumbnail(const QString& resourcePath, const QSize& size,
-                                       MediaType type, int radius, const QString& iconPath)
+                                       MediaType type, int radius, const QString& iconPath, QString name)
 {
     if(resourcePath.isEmpty()) {
         return QPixmap();
@@ -59,7 +60,9 @@ QPixmap ThumbnailResourceManager::getThumbnail(const QString& resourcePath, cons
         m_loadingMap[cacheKey] = true;
 
         // 启动异步加载
-        ThumbnailLoadTask* task = new ThumbnailLoadTask(resourcePath, size, type, radius, cacheKey, this, iconPath);
+        ThumbnailLoadTask* task = new ThumbnailLoadTask(resourcePath, size, type,
+                                                        radius, cacheKey, this, iconPath, name);
+
         m_threadPool.start(task);
     }
 
@@ -162,11 +165,12 @@ void ThumbnailResourceManager::addTextIndicator(QPixmap& pixmap, const QString& 
 }
 
 QPixmap ThumbnailResourceManager::processThumbnail(const QString &resourcePath, const QSize& size,
-                                                   MediaType type, int radius, const QString &iconPath)
+                                                   MediaType type, int radius,
+                                                   const QString &iconPath, const QString name)
 {
     switch(type) {
     case MediaType::Avatar:
-        return processAvatar(resourcePath, size, radius);
+        return processAvatar(resourcePath, size, radius, name);
     case MediaType::ImageThumb:
         return processImageThumb(resourcePath, size, iconPath);
     case MediaType::VideoThumb:
@@ -178,29 +182,70 @@ QPixmap ThumbnailResourceManager::processThumbnail(const QString &resourcePath, 
     }
 }
 
+
 QPixmap ThumbnailResourceManager::processAvatar(const QString &resourcePath, const QSize& size,
-                                                int radius)
+                                                int radius, const QString name)
 {
     QImage image(resourcePath);
-    if(image.isNull()) return QPixmap(size);
-    QImage scaledImage = image.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
 
-    QPixmap result(size);
-    result.fill(Qt::transparent);
+    if(image.isNull()) {
+        // 加载图片失败，生成默认头像
+        QPixmap defaultAvatar(size);
+        defaultAvatar.fill(Qt::transparent);
 
-    QPainter painter(&result);
-    painter.setRenderHint(QPainter::Antialiasing, true);
+        QPainter painter(&defaultAvatar);
+        painter.setRenderHint(QPainter::Antialiasing, true);
 
-    QPainterPath path;
-    path.addRoundedRect(QRectF(0, 0, size.width(), size.height()), radius, radius);
-    painter.setClipPath(path);
+        // 绘制圆角矩形背景
+        QPainterPath path;
+        path.addRoundedRect(QRectF(0, 0, size.width(), size.height()), radius, radius);
 
-    int x = (scaledImage.width() - size.width()) / 2;
-    int y = (scaledImage.height() - size.height()) / 2;
-    painter.drawImage(0, 0, scaledImage, x, y, size.width(), size.height());
+        // 根据名字生成背景颜色
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(210,210,210));
+        painter.drawPath(path);
 
-    return result;
+        // 绘制名字首字母
+        QString displayText = name.left(1).toUpper();
+
+        QFont font = painter.font();
+        font.setBold(true);
+
+        // 动态计算字体大小
+        int fontSize = qMin(size.width(), size.height()) * 0.5;
+        fontSize = qMax(fontSize, 12);
+        font.setPixelSize(fontSize);
+
+        painter.setFont(font);
+        painter.setPen(QColor(255, 255, 255)); // 白色文字
+
+        // 绘制文字
+        painter.drawText(QRect(0, 0, size.width(), size.height()),
+                             Qt::AlignCenter | Qt::TextSingleLine,
+                             displayText);
+        return defaultAvatar;
+    } else {
+        // 图片加载成功，处理原图
+        QImage scaledImage = image.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+
+        QPixmap result(size);
+        result.fill(Qt::transparent);
+
+        QPainter painter(&result);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+
+        QPainterPath path;
+        path.addRoundedRect(QRectF(0, 0, size.width(), size.height()), radius, radius);
+        painter.setClipPath(path);
+
+        int x = (scaledImage.width() - size.width()) / 2;
+        int y = (scaledImage.height() - size.height()) / 2;
+        painter.drawImage(0, 0, scaledImage, x, y, size.width(), size.height());
+
+        return result;
+    }
 }
+
 
 QPixmap ThumbnailResourceManager::processImageThumb(const QString &resourcePath, const QSize& size,
                                                     const QString &iconPath)

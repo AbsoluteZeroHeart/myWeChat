@@ -11,7 +11,7 @@
 
 
 ContactTreeView::ContactTreeView(QWidget *parent)
-    : QTreeView(parent)
+    : CustomTreeView(parent)
     , m_contactModel(nullptr)
 {
     // 配置视图
@@ -67,7 +67,7 @@ void ContactTreeView::mousePressEvent(QMouseEvent *event)
 
     } else {
         // 对于其他节点，正常处理
-        QTreeView::mousePressEvent(event);
+        CustomTreeView::mousePressEvent(event);
     }
 }
 
@@ -80,7 +80,7 @@ void ContactTreeView::mouseReleaseEvent(QMouseEvent *event)
         clearSelection();
         event->accept();
     } else {
-        QTreeView::mouseReleaseEvent(event);
+        CustomTreeView::mouseReleaseEvent(event);
     }
 }
 
@@ -97,7 +97,7 @@ void ContactTreeView::mouseDoubleClickEvent(QMouseEvent *event)
         }
         event->accept();
     } else {
-        QTreeView::mouseDoubleClickEvent(event);
+        CustomTreeView::mouseDoubleClickEvent(event);
     }
 }
 
@@ -133,7 +133,7 @@ void ContactTreeView::selectionChanged(const QItemSelection &selected, const QIt
     }
 
     // 正常处理选择变化
-    QTreeView::selectionChanged(selected, deselected);
+    CustomTreeView::selectionChanged(selected, deselected);
 }
 
 void ContactTreeView::handleParentNodeClick(const QModelIndex &index)

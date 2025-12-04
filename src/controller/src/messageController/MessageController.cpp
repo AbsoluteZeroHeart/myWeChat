@@ -22,7 +22,6 @@ MessageController::MessageController(DatabaseManager* dbManager, QObject* parent
     , contactTable(nullptr)
     , userTable(nullptr)
     , m_messagesModel(new ChatMessagesModel(this))
-    , m_currentConversationId(-1)
     , currentUser(User())
     , loading(false)
     , currentOffset(0)
@@ -91,11 +90,11 @@ void MessageController::connectSignals()
     }
 }
 
-void MessageController::setCurrentConversationId(qint64 conversationId)
+void MessageController::setCurrentConversation(Conversation conversation)
 {
-    if (m_currentConversationId != conversationId) {
-        m_currentConversationId = conversationId;
-        m_messagesModel->setConversationId(conversationId);
+    if (m_currentConversation.conversationId != conversation.conversationId) {
+        m_currentConversation = conversation;
+        m_messagesModel->setConversationId(conversation.conversationId);
         currentOffset = 0;
         isSearchMode = false;
 
@@ -111,15 +110,23 @@ void MessageController::setCurrentUser(int reqId, User user)
     }
 }
 
+// 测试模拟接收信息---------
+void MessageController::saveMessage(Message msg){
+    QMetaObject::invokeMethod(messageTable, "saveMessage",
+                              Qt::QueuedConnection,
+                              Q_ARG(int, 0),
+                              Q_ARG(Message, msg));
+}
+
 
 // 文本发送
 void MessageController::sendTextMessage(const QString& content)
 {
-    if (content.trimmed().isEmpty() || m_currentConversationId == -1) {
+    if (content.trimmed().isEmpty() || !m_currentConversation.isValid()) {
         return;
     }
 
-    Message message = createMessage(m_currentConversationId, MessageType::TEXT, content);
+    Message message = createMessage(m_currentConversation, MessageType::TEXT, content);
 
     // 先添加到模型（立即显示）
     m_messagesModel->addMessage(message);
@@ -131,13 +138,23 @@ void MessageController::sendTextMessage(const QString& content)
                               Qt::QueuedConnection,
                               Q_ARG(int, reqId),
                               Q_ARG(Message, message));
+
+
+    // ---------------------临时测试-------------
+    const QVector<Message> &original = m_messagesModel->m_messages;
+    QVector<Message> result;
+    result.reserve(qMin(9, original.size()));
+    std::copy_n(original.rbegin(), qMin(9, original.size()), std::back_inserter(result));
+    emit send(result);
+
+    //-------------------------------------------------
 }
 
 
 // 图片发送
 void MessageController::preprocessImageBeforeSend(QStringList pathLis)
 {
-    imageProcessor->processImages(m_currentConversationId, pathLis);
+    imageProcessor->processImages(m_currentConversation.conversationId, pathLis);
 }
 void MessageController::sendImageMessage(const qint64 conversationId,
                                          const QString &originalImagePath,
@@ -149,7 +166,10 @@ void MessageController::sendImageMessage(const qint64 conversationId,
     QFileInfo fileInfo(originalImagePath);
 
     qint64 fileSize = fileInfo.size();
-    Message message = createMessage(conversationId,
+    Conversation tempConv = m_currentConversation;
+    tempConv.conversationId = conversationId;
+
+    Message message = createMessage(tempConv,
                                     MessageType::IMAGE,
                                     "【图片】"+fileInfo.fileName(),
                                     originalImagePath,
@@ -157,7 +177,7 @@ void MessageController::sendImageMessage(const qint64 conversationId,
                                     0,
                                     thumbnailPath);
 
-    if(conversationId==m_currentConversationId){
+    if(conversationId==m_currentConversation.conversationId){
         m_messagesModel->addMessage(message);
         currentOffset += 1;
     }
@@ -167,13 +187,20 @@ void MessageController::sendImageMessage(const qint64 conversationId,
                               Qt::QueuedConnection,
                               Q_ARG(int, reqId),
                               Q_ARG(Message, message));
+    // ---------------------临时测试-------------
+    const QVector<Message> &original = m_messagesModel->m_messages;
+    QVector<Message> result;
+    result.reserve(qMin(9, original.size()));
+    std::copy_n(original.rbegin(), qMin(9, original.size()), std::back_inserter(result));
+    emit send(result);
+    //-------------------------------------------------
 }
 
 
 // 视频发送
 void MessageController::preprocessVideoBeforeSend(QStringList fileList)
 {
-    videoProcessor->processVideos(m_currentConversationId, fileList);
+    videoProcessor->processVideos(m_currentConversation.conversationId, fileList);
 }
 void MessageController::sendVideoMessage(qint64 conversationId,
                                          const QString &originalPath,
@@ -182,7 +209,10 @@ void MessageController::sendVideoMessage(qint64 conversationId,
 {
     QFileInfo fileInfo(originalPath);
     qint64 fileSize = fileInfo.size();
-    Message message = createMessage(conversationId,
+    Conversation tempConv = m_currentConversation;
+    tempConv.conversationId = conversationId;
+
+    Message message = createMessage(tempConv,
                                     MessageType::VIDEO,
                                     "【视频】"+fileInfo.fileName(),
                                     originalPath,
@@ -191,7 +221,7 @@ void MessageController::sendVideoMessage(qint64 conversationId,
                                     thumbnailPath);
 
 
-    if(conversationId==m_currentConversationId){
+    if(conversationId==m_currentConversation.conversationId){
         m_messagesModel->addMessage(message);
         currentOffset += 1;
     }
@@ -201,13 +231,21 @@ void MessageController::sendVideoMessage(qint64 conversationId,
                               Qt::QueuedConnection,
                               Q_ARG(int, reqId),
                               Q_ARG(Message, message));
+
+    // ---------------------临时测试-------------
+    const QVector<Message> &original = m_messagesModel->m_messages;
+    QVector<Message> result;
+    result.reserve(qMin(9, original.size()));
+    std::copy_n(original.rbegin(), qMin(9, original.size()), std::back_inserter(result));
+    emit send(result);
+    //-------------------------------------------------
 }
 
 
 // 文件发送
 void MessageController::preprocessFileBeforeSend(QStringList fileList)
 {
-    fileCopyProcessor->copyFiles(m_currentConversationId, fileList);
+    fileCopyProcessor->copyFiles(m_currentConversation.conversationId, fileList);
 }
 void MessageController::sendFileMessage(const qint64 conversationId,
                                         bool success,
@@ -217,9 +255,12 @@ void MessageController::sendFileMessage(const qint64 conversationId,
 {
     QFileInfo fileInfo(targetPath);
     qint64 fileSize = fileInfo.size();
-    Message message = createMessage(conversationId, MessageType::FILE, "【文件】"+fileInfo.fileName(), targetPath, fileSize);
+    Conversation tempConv = m_currentConversation;
+    tempConv.conversationId = conversationId;
 
-    if(conversationId==m_currentConversationId){
+    Message message = createMessage(tempConv, MessageType::FILE, "【文件】"+fileInfo.fileName(), targetPath, fileSize);
+
+    if(conversationId==m_currentConversation.conversationId){
         m_messagesModel->addMessage(message);
         currentOffset += 1;
     }
@@ -229,17 +270,25 @@ void MessageController::sendFileMessage(const qint64 conversationId,
                               Qt::QueuedConnection,
                               Q_ARG(int, reqId),
                               Q_ARG(Message, message));
+
+    // ---------------------临时测试-------------
+    const QVector<Message> &original = m_messagesModel->m_messages;
+    QVector<Message> result;
+    result.reserve(qMin(9, original.size()));
+    std::copy_n(original.rbegin(), qMin(9, original.size()), std::back_inserter(result));
+    emit send(result);
+    //-------------------------------------------------
 }
 
 
 void MessageController::sendVoiceMessage(const QString& filePath, int duration)
 {
-    if (filePath.isEmpty() || m_currentConversationId == -1) {
+    if (filePath.isEmpty() || !m_currentConversation.isValid()) {
         return;
     }
 
     qint64 fileSize = 0;
-    Message message = createMessage(m_currentConversationId, MessageType::VOICE, "语音消息", filePath, fileSize, duration);
+    Message message = createMessage(m_currentConversation, MessageType::VOICE, "语音消息", filePath, fileSize, duration);
 
     m_messagesModel->addMessage(message);
 
@@ -249,13 +298,21 @@ void MessageController::sendVoiceMessage(const QString& filePath, int duration)
                               Qt::QueuedConnection,
                               Q_ARG(int, reqId),
                               Q_ARG(Message, message));
+
+    // ---------------------临时测试-------------
+    const QVector<Message> &original = m_messagesModel->m_messages;
+    QVector<Message> result;
+    result.reserve(qMin(9, original.size()));
+    std::copy_n(original.rbegin(), qMin(9, original.size()), std::back_inserter(result));
+    emit send(result);
+    //-------------------------------------------------
 }
 
 
 // 异步查询加载操作
 void MessageController::loadRecentMessages(int limit)
 {
-    if (m_currentConversationId == -1 || !messageTable) {
+    if (!m_currentConversation.isValid() || !messageTable) {
         return;
     }
 
@@ -268,14 +325,14 @@ void MessageController::loadRecentMessages(int limit)
     QMetaObject::invokeMethod(messageTable, "getMessages",
                               Qt::QueuedConnection,
                               Q_ARG(int, reqId),
-                              Q_ARG(qint64, m_currentConversationId),
+                              Q_ARG(qint64, m_currentConversation.conversationId),
                               Q_ARG(int, limit),
                               Q_ARG(int, 0));
 }
 
 void MessageController::loadMoreMessages(int limit)
 {
-    if (loading || m_currentConversationId == -1 || !messageTable) {
+    if (loading || !m_currentConversation.isValid() || !messageTable) {
         return;
     }
 
@@ -287,7 +344,7 @@ void MessageController::loadMoreMessages(int limit)
     QMetaObject::invokeMethod(messageTable, "getMessages",
                               Qt::QueuedConnection,
                               Q_ARG(int, reqId),
-                              Q_ARG(qint64, m_currentConversationId),
+                              Q_ARG(qint64, m_currentConversation.conversationId),
                               Q_ARG(int, limit),
                               Q_ARG(int, currentOffset));
 }
@@ -438,7 +495,7 @@ void MessageController::onDbError(int reqId, const QString& error)
 }
 
 // 私有辅助方法
-Message MessageController::createMessage(qint64 conversationId,
+Message MessageController::createMessage(const Conversation &conversation,
                                          MessageType type,
                                          const QString& content,
                                          const QString& filePath,
@@ -448,9 +505,10 @@ Message MessageController::createMessage(qint64 conversationId,
 {
     Message message;
     message.messageId = QDateTime::currentMSecsSinceEpoch();
-    message.conversationId = conversationId;
+    message.conversationId = conversation.conversationId;
 
     message.senderId = currentUser.userId;
+    message.consigneeId = (conversation.isGroup())? conversation.groupId :conversation.userId;
     message.senderName = currentUser.nickname;
     message.avatar = currentUser.avatarLocalPath;
 

@@ -38,12 +38,13 @@ void MessageTable::saveMessage(int reqId, Message message)
 
     QSqlQuery query(*m_database);
     query.prepare("INSERT INTO messages ("
-                  "conversation_id, sender_id, type, content, "
+                  "conversation_id, sender_id, consignee_id, type, content, "
                   "file_path, file_url, file_size, duration, thumbnail_path, msg_time"
-                  ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                  ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     query.addBindValue(message.conversationId);
     query.addBindValue(message.senderId);
+    query.addBindValue(message.consigneeId);
     query.addBindValue(static_cast<int>(message.type));
     query.addBindValue(message.content);
     query.addBindValue(message.filePath);
@@ -69,13 +70,14 @@ void MessageTable::updateMessage(int reqId, Message message)
 
     QSqlQuery query(*m_database);
     query.prepare("UPDATE messages SET "
-                  "conversation_id = ?, sender_id = ?, type = ?, content = ?, "
+                  "conversation_id = ?, sender_id = ?, consignee_id = ?, type = ?, content = ?, "
                   "file_path = ?, file_url = ?, file_size = ?, duration = ?, "
                   "thumbnail_path = ?, msg_time = ? "
                   "WHERE message_id = ?");
 
     query.addBindValue(message.conversationId);
     query.addBindValue(message.senderId);
+    query.addBindValue(message.consigneeId);
     query.addBindValue(static_cast<int>(message.type));
     query.addBindValue(message.content);
     query.addBindValue(message.filePath);
@@ -157,6 +159,7 @@ void MessageTable::getMessages(int reqId, qint64 conversationId, int limit, int 
         message.messageId = query.value("message_id").toLongLong();
         message.conversationId = query.value("conversation_id").toLongLong();
         message.senderId = query.value("sender_id").toLongLong();
+        message.consigneeId = query.value("consignee_id").toLongLong();
         message.type = static_cast<MessageType>(query.value("type").toInt());
         message.content = query.value("content").toString();
         message.filePath = query.value("file_path").toString();
@@ -328,7 +331,3 @@ void MessageTable::getMediaItems(int reqId, qint64 conversationId)
     emit mediaItemsLoaded(reqId, mediaItems);
 }
 
-MediaItem MessageTable::mediaFromQuery(const QSqlQuery &q) const
-{
-    return MediaItem::fromSqlQuery(q);
-}

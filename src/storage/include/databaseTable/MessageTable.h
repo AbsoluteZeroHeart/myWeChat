@@ -56,6 +56,4 @@ signals:
 private:
     QSharedPointer<QSqlDatabase> m_database;
 
-    // 私有 helpers
-    MediaItem mediaFromQuery(const QSqlQuery &q) const;
 };

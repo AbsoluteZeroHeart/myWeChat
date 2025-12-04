@@ -3,10 +3,11 @@
 
 #include <QTreeView>
 #include "Contact.h"
+#include "CustomTreeView.h"
 
 class ContactTreeModel;
 
-class ContactTreeView : public QTreeView
+class ContactTreeView : public CustomTreeView
 {
     Q_OBJECT
 

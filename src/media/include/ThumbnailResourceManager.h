@@ -40,8 +40,8 @@ public:
 
     // 获取资源 - 对于ImageThumb和VideoThumb，resourcePath是原路径，iconPath是图标路径
     QPixmap getThumbnail(const QString& resourcePath, const QSize& size = QSize(),
-                     MediaType type = MediaType::Avatar, int radius = 5,
-                     const QString& iconPath = QString());
+                         MediaType type = MediaType::Avatar, int radius = 5,
+                         const QString& iconPath = QString(), QString name = "?");
 
     // 预加载资源到缓存
     void preloadThumbnail(const QString& resourcePath, const QSize& size = QSize(),
@@ -50,7 +50,7 @@ public:
 
     static QPixmap processThumbnail(const QString& resourcePath, const QSize& size = QSize(),
                                     MediaType type = MediaType::Avatar, int radius = 5,
-                                    const QString& iconPath = QString());
+                                    const QString& iconPath = QString(), const QString name = "?");
 
     // 获取警告缩略图
     static QPixmap getWarningThumbnail(const QString& thumbnailPath,const QString &mediaType, const QSize &size = QSize(200,300));
@@ -83,7 +83,7 @@ private:
     };
 
     QPixmap getPixmap(const QSize &size);
-    static QPixmap processAvatar(const QString &resourcePath, const QSize& size, int radius);
+    static QPixmap processAvatar(const QString &resourcePath, const QSize& size, int radius, const QString name);
     static QPixmap processImageThumb(const QString &resourcePath, const QSize& size, const QString &iconPath);
     static QPixmap processVideoThumb(const QString &resourcePath, const QSize& size, const QString &iconPath);
     static QPixmap processOriginalImage(const QString &resourcePath);    // 处理原图片加载
@@ -114,16 +114,16 @@ class ThumbnailLoadTask : public QRunnable
 public:
     ThumbnailLoadTask(const QString& path, const QSize& size, MediaType type,
                   int radius, const QString& cacheKey, ThumbnailResourceManager* manager,
-                  const QString& iconPath = QString())
+                      const QString& iconPath = QString(), const QString &name="?")
         : m_path(path), m_size(size), m_type(type), m_radius(radius),
-        m_cacheKey(cacheKey), m_manager(manager), m_iconPath(iconPath) {}
+        m_cacheKey(cacheKey), m_manager(manager), m_iconPath(iconPath), m_name(name) {}
 
     void run() override {
 
         bool success = false;
         QPixmap result;
 
-        result = ThumbnailResourceManager::processThumbnail(m_path, m_size, m_type, m_radius, m_iconPath);
+        result = ThumbnailResourceManager::processThumbnail(m_path, m_size, m_type, m_radius, m_iconPath, m_name);
         success = !result.isNull();
 
 
@@ -142,6 +142,7 @@ private:
     MediaType m_type;
     int m_radius;
     QString m_iconPath;
+    QString m_name;
 
     QString m_cacheKey;
     ThumbnailResourceManager* m_manager;

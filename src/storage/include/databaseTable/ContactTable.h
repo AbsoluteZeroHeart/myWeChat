@@ -16,7 +16,7 @@ public:
 
 public slots:
 
-     void init();
+     bool init();
 
     void getCurrentUser(int reqId);//获取当前登录用户
 

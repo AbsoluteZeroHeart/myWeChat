@@ -21,6 +21,8 @@ public:
     explicit UserController(DatabaseManager* dbManager, QObject* parent = nullptr); // 构造函数
     ~UserController(); // 析构函数
 
+    void setCurrentUser(User user){currentUser = user; } // 用于测试-----------暂时使用---
+
     // 异步操作方法
     void getCurrentUser();   // 获取当前用户信息
     void updateCurrentUser(const User& user); // 更新当前用户信息
@@ -55,7 +57,6 @@ signals:
     // 状态变更信号（用于UI更新）
     void userProfileUpdated(const User& user); // 用户资料更新通知
     void userAdded(const User& user); // 用户添加通知
-    void userDeleted(qint64 userId);  // 用户删除通知
     void userDataChanged();           // 用户数据变更通知
     void userLoggedOut();             // 用户登出通知
 

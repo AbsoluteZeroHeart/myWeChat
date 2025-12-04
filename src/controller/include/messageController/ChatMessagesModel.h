@@ -72,8 +72,10 @@ public:
     void setConversationId(qint64 conversationId);
     qint64 conversationId() const;
 
+    QVector<Message> m_messages; // 暂时放在public
+
 private:
-    QVector<Message> m_messages;
+    // QVector<Message> m_messages;
     qint64 m_currentUserId = 0;
     qint64 m_currentConversationId = 0;
 };

@@ -130,6 +130,7 @@ QString DatabaseSchema::getCreateTableMessages() {
             message_id INTEGER PRIMARY KEY,              -- 消息ID
             conversation_id INTEGER NOT NULL,            -- 所属会话ID
             sender_id INTEGER NOT NULL,                  -- 发送者用户ID
+            consignee_id INTEGER NOT NULL,               -- 接收者用户ID
 
             type INTEGER NOT NULL,                       -- 消息类型（0:文本 1:图片 2：视频 3：文件 4：语音）
             content TEXT,                                -- 消息内容
@@ -143,6 +144,7 @@ QString DatabaseSchema::getCreateTableMessages() {
             -- 外键关联
             FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
             FOREIGN KEY (sender_id) REFERENCES users(user_id) ON DELETE RESTRICT
+            FOREIGN KEY (consignee_id) REFERENCES users(user_id) ON DELETE RESTRICT
         )
     )";
 }

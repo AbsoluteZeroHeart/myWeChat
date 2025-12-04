@@ -14,14 +14,15 @@ ContactTable::~ContactTable()
 {
 }
 
-void ContactTable::init()
+bool ContactTable::init()
 {
     m_database = DbConnectionManager::connectionForCurrentThread();
     if (!m_database || !m_database->isValid() || !m_database->isOpen()) {
         QString errorText = m_database ? m_database->lastError().text() : "Failed to get database connection";
         emit dbError(-1, QString("Open DB failed: %1").arg(errorText));
-        return;
+        return false;
     }
+    return true;
 }
 
 QString ContactTable::tagsToString(const QJsonArray &tags) const {
@@ -32,13 +33,12 @@ void ContactTable::getCurrentUser(int reqId)
 {
     QSqlQuery query(*m_database);
     // 获取当前用户ID
-    int currentUserId = -1;
+    qint64 currentUserId = -1;
     if (query.exec("SELECT user_id FROM users WHERE is_current = 1")) {
         if (query.next()) {
             currentUserId = query.value("user_id").toLongLong();
         }
     }
-
     getContact(reqId, currentUserId);
 }
 

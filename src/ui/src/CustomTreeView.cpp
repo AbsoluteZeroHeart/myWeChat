@@ -1,133 +1,137 @@
-#include "Customlistview.h"
+#include "CustomTreeView.h"
 #include <QMouseEvent>
 #include <QResizeEvent>
-#include <QPushButton>
+#include <QWheelEvent>
+#include <QEnterEvent>
 
-CustomListView::CustomListView(QWidget *parent)
-    : QListView(parent), isSyncing(false), remainingScroll(0)
+CustomTreeView::CustomTreeView(QWidget *parent)
+    : QTreeView(parent)
 {
     // 基本行为
     setSelectionMode(QAbstractItemView::SingleSelection);
     setMouseTracking(true);
     setAttribute(Qt::WA_Hover, true);
     setEditTriggers(QAbstractItemView::NoEditTriggers);
-
-
+    
     // 设置平滑滚动
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-
-    // 让视图不占用右侧滚动条布局空间（用新的滚动条）
+    
+    // 隐藏原生滚动条，使用自定义的
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    // 取得native scrollbar(视图实际内部仍使用它进行实际滚动）
-    nativeVsb = QListView::verticalScrollBar();
+    
+    // 获取原生垂直滚动条
+    nativeVsb = QTreeView::verticalScrollBar();
     if (!nativeVsb) nativeVsb = new QScrollBar(Qt::Vertical, this);
     nativeVsb->hide();
-
-    // 创建overly scrollbar （放在viewport上）
+    
+    // 创建自定义覆盖滚动条
     newVsb = new QScrollBar(Qt::Vertical, this->viewport());
     newVsb->setFixedWidth(overlayWidth);
     newVsb->setCursor(Qt::ArrowCursor);
-
+    
     updateScrollBarPosition();
     applyScrollBarStyle();
-
-    // 设置透明度
+    
+    // 透明度效果
     opacity = new QGraphicsOpacityEffect(newVsb);
     opacity->setOpacity(0.0);
     newVsb->setGraphicsEffect(opacity);
-
-    // 设置透明动画，淡进淡出
+    
+    // 淡入淡出动画
     fadeAnim = new QPropertyAnimation(opacity, "opacity", this);
     fadeAnim->setDuration(200);
     fadeAnim->setEasingCurve(QEasingCurve::InOutQuad);
-
-    // 隐藏延时
+    
+    // 隐藏定时器
     hideTimer = new QTimer(this);
     hideTimer->setInterval(600);
     hideTimer->setSingleShot(true);
-    connect(hideTimer, &QTimer::timeout, this, &CustomListView::fadeOutOverlay);
-
-    // 确保viewport的event/leave/滚轮事件也被捕获
+    connect(hideTimer, &QTimer::timeout, this, &CustomTreeView::fadeOutOverlay);
+    
+    // 事件过滤器
     viewport()->installEventFilter(this);
     installEventFilter(this);
-    //当动画结束并且透明的为0时隐藏overlay
-    connect(fadeAnim, &QPropertyAnimation::finished, this, [this](){
-        if(opacity->opacity()<= 0.001 && newVsb){
+    
+    // 动画结束时隐藏滚动条
+    connect(fadeAnim, &QPropertyAnimation::finished, this, [this]() {
+        if (opacity->opacity() <= 0.001 && newVsb) {
             newVsb->hide();
         }
     });
-
-    // native->overlay(视图更新overlay）
-    connect(nativeVsb, &QScrollBar::valueChanged, this, [this](int value){
-        if(!isSyncing){
+    
+    // 原生滚动条 -> 自定义滚动条同步
+    connect(nativeVsb, &QScrollBar::valueChanged, this, [this](int value) {
+        if (!isSyncing) {
             isSyncing = true;
             newVsb->setValue(value);
             isSyncing = false;
         }
     });
-    connect(nativeVsb, &QScrollBar::rangeChanged, this, [this](int min, int max){
+    
+    connect(nativeVsb, &QScrollBar::rangeChanged, this, [this](int min, int max) {
         newVsb->setRange(min, max);
         newVsb->setPageStep(nativeVsb->pageStep());
         updateScrollBarPosition();
-        if(min == max){
+        if (min == max) {
             newVsb->hide();
-        }else if(newVsb->isHidden()&&(max-min > 0)){
+        } else if (newVsb->isHidden() && (max - min > 0)) {
             showOverlayScrollBar();
             startHideTimer();
         }
     });
-    connect(nativeVsb, &QScrollBar::sliderMoved, this, [this](int position){
-        if(!isSyncing){
+    
+    connect(nativeVsb, &QScrollBar::sliderMoved, this, [this](int position) {
+        if (!isSyncing) {
             isSyncing = true;
             newVsb->setSliderPosition(position);
             isSyncing = false;
         }
     });
-
-    // voerlay->native(用户拖动overlay时控制真实滚动）
-    connect(newVsb, &QScrollBar::valueChanged, this, [this](int value){
-        if(!isSyncing){
+    
+    // 自定义滚动条 -> 原生滚动条同步
+    connect(newVsb, &QScrollBar::valueChanged, this, [this](int value) {
+        if (!isSyncing) {
             isSyncing = true;
             nativeVsb->setValue(value);
             isSyncing = false;
         }
     });
-    connect(newVsb, &QScrollBar::sliderMoved, this, [this](int position){
-        if(!isSyncing){
+    
+    connect(newVsb, &QScrollBar::sliderMoved, this, [this](int position) {
+        if (!isSyncing) {
             isSyncing = true;
             nativeVsb->setSliderPosition(position);
             isSyncing = false;
         }
     });
-
-    // 初始同步状态
+    
+    // 初始同步
     newVsb->setRange(nativeVsb->minimum(), nativeVsb->maximum());
     newVsb->setPageStep(nativeVsb->pageStep());
     newVsb->setValue(nativeVsb->value());
-
-    // 默认overlay隐藏
+    
+    // 默认隐藏
     newVsb->hide();
-
-    // 初始化分帧滚动定时器
+    
+    // 平滑滚动定时器
     scrollTimer = new QTimer(this);
     scrollTimer->setInterval(frameInterval);
     scrollTimer->setSingleShot(false);
-    connect(scrollTimer, &QTimer::timeout, this, &CustomListView::onScrollTimerTimeout);
+    connect(scrollTimer, &QTimer::timeout, this, &CustomTreeView::onScrollTimerTimeout);
 }
 
-CustomListView::~CustomListView()
+CustomTreeView::~CustomTreeView()
 {
     hideTimer->stop();
     scrollTimer->stop();
 }
 
-// 更新样式
-void CustomListView::applyScrollBarStyle()
+void CustomTreeView::applyScrollBarStyle()
 {
-    if(!newVsb) return;
+    if (!newVsb) return;
+
     newVsb->setStyleSheet(QString(
         "QScrollBar:vertical{"
         "background: transparent;"
@@ -152,184 +156,176 @@ void CustomListView::applyScrollBarStyle()
         "}"
         ));
 }
-
-void CustomListView::scrollContentsBy(int dx, int dy)
+void CustomTreeView::scrollContentsBy(int dx, int dy)
 {
-    QListView::scrollContentsBy(dx, dy);
+    QTreeView::scrollContentsBy(dx, dy);
     updateScrollBarPosition();
 }
 
-void CustomListView::updateScrollBarPosition()
+void CustomTreeView::updateScrollBarPosition()
 {
-    if(!newVsb || !viewport()) return;
+    if (!newVsb || !viewport()) return;
+    
     QRect vpRect = viewport()->rect();
     int x = vpRect.right() - overlayWidth - marginRight;
     int y = vpRect.top();
     int w = overlayWidth;
     int h = vpRect.height();
-
-    newVsb->setGeometry(x,y,w,h);
+    
+    newVsb->setGeometry(x, y, w, h);
     newVsb->raise();
 }
 
-void CustomListView::mousePressEvent(QMouseEvent *event)
+void CustomTreeView::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
         QModelIndex index = indexAt(event->pos());
-        if(index.isValid()){
-            if(selectionModel()->isSelected(index)){
+        if (index.isValid()) {
+            if (selectionModel()->isSelected(index)) {
                 selectionModel()->select(index, QItemSelectionModel::Deselect);
                 emit clicked(index);
                 return;
             }
         }
     }
-    // 点击时显示滚动条
+    
     showOverlayScrollBar();
-    QListView::mousePressEvent(event);
+    QTreeView::mousePressEvent(event);
 }
 
-void CustomListView::enterEvent(QEnterEvent *event)
+void CustomTreeView::enterEvent(QEnterEvent *event)
 {
     Q_UNUSED(event);
     showOverlayScrollBar();
     hideTimer->stop();
-    QListView::enterEvent(event);
+    QTreeView::enterEvent(event);
 }
 
-void CustomListView::leaveEvent(QEvent *event)
+void CustomTreeView::leaveEvent(QEvent *event)
 {
     Q_UNUSED(event);
     startHideTimer();
-    QListView::leaveEvent(event);
+    QTreeView::leaveEvent(event);
 }
 
-bool CustomListView::eventFilter(QObject *watched, QEvent *event)
+bool CustomTreeView::eventFilter(QObject *watched, QEvent *event)
 {
-    if(watched == viewport()){
-        if(event->type() == QEvent::Enter){
+    if (watched == viewport()) {
+        if (event->type() == QEvent::Enter) {
             showOverlayScrollBar();
             hideTimer->stop();
-        }else if(event->type() == QEvent::Leave){
+        } else if (event->type() == QEvent::Leave) {
             startHideTimer();
-        }else if(event->type() == QEvent::Wheel){
+        } else if (event->type() == QEvent::Wheel) {
             showOverlayScrollBar();
         }
     }
-    return QListView::eventFilter(watched, event);
+    return QTreeView::eventFilter(watched, event);
 }
 
-void CustomListView::wheelEvent(QWheelEvent *event)
+void CustomTreeView::wheelEvent(QWheelEvent *event)
 {
     showOverlayScrollBar();
+    
     int totalScrollPixel = 0;
     const qreal ANGLE_TO_PIXEL = 0.17;
-
-    if(event->pixelDelta().y() != 0){
-        //触控板：直接使用像素增量
+    
+    if (event->pixelDelta().y() != 0) {
+        // 触控板
         totalScrollPixel = event->pixelDelta().y();
-    }
-    else{
-        // 鼠标滚轮：角度转像素
+    } else {
+        // 鼠标滚轮
         const qreal angle = event->angleDelta().y();
         const qreal scrollPixel = angle * ANGLE_TO_PIXEL;
-
-        // 滚动越多速度越快
-        qreal mul = qMin(qAbs(remainingScroll)/scrollSpeed, 2);
-        qreal scrollSpeed_1 = scrollSpeed + mul*scrollSpeed;
-
-        const qreal finalScrollPixel = scrollPixel * (scrollSpeed_1/20.0);
+        
+        // 滚动速度计算
+        qreal mul = qMin(qreal(qAbs(remainingScroll) / scrollSpeed), qreal(2.0));
+        qreal scrollSpeed_1 = scrollSpeed + mul * scrollSpeed;
+        
+        const qreal finalScrollPixel = scrollPixel * (scrollSpeed_1 / 20.0);
         totalScrollPixel = qRound(finalScrollPixel);
     }
-    // 添加到滚动量
+    
     remainingScroll += -totalScrollPixel;
-    if(!scrollTimer->isActive()) scrollTimer->start();
-
+    if (!scrollTimer->isActive()) scrollTimer->start();
+    
     event->accept();
 }
 
-void CustomListView::resizeEvent(QResizeEvent *event)
+void CustomTreeView::resizeEvent(QResizeEvent *event)
 {
-    QListView::resizeEvent(event);
+    QTreeView::resizeEvent(event);
     updateScrollBarPosition();
-
+    
+    // 触发几何更新
     updateGeometries();
-
-    // 如果有模型，触发数据改变信号来刷新所有可见项
+    
+    // 刷新可见项
     if (model()) {
-        // 获取可见区域的首尾索引
         QModelIndex firstVisible = indexAt(viewport()->rect().topLeft());
         QModelIndex lastVisible = indexAt(viewport()->rect().bottomLeft());
-
+        
         if (firstVisible.isValid() && lastVisible.isValid()) {
-            // 触发可见区域的数据改变信号
             emit model()->dataChanged(firstVisible, lastVisible);
         }
     }
 }
 
-void CustomListView::showOverlayScrollBar()
+void CustomTreeView::showOverlayScrollBar()
 {
-    if(!newVsb) return;
+    if (!newVsb) return;
+    
     hideTimer->stop();
-    if(!newVsb->isVisible()) newVsb->show();
-
-    // 如果已经完全不透明，不需要启动动画
-    if(qFuzzyCompare(opacity->opacity(), 1.0)) return;
-
+    if (!newVsb->isVisible()) newVsb->show();
+    
+    if (qFuzzyCompare(opacity->opacity(), 1.0)) return;
+    
     fadeAnim->stop();
     fadeAnim->setStartValue(opacity->opacity());
     fadeAnim->setEndValue(1.0);
     fadeAnim->start();
 }
 
-void CustomListView::startHideTimer()
+void CustomTreeView::startHideTimer()
 {
-    if(!newVsb) return;
+    if (!newVsb) return;
     hideTimer->start();
 }
 
-void CustomListView::fadeOutOverlay()
+void CustomTreeView::fadeOutOverlay()
 {
-    if(!newVsb) return;
-
+    if (!newVsb) return;
+    
     fadeAnim->stop();
     fadeAnim->setStartValue(opacity->opacity());
     fadeAnim->setEndValue(0.0);
     fadeAnim->start();
 }
 
-// 定时器触发的小幅度滚动函数
-void CustomListView::onScrollTimerTimeout()
+void CustomTreeView::onScrollTimerTimeout()
 {
-    //剩余滚动量为0，停止定时器
-    if(remainingScroll == 0){
+    if (remainingScroll == 0) {
         scrollTimer->stop();
         return;
     }
-    // 滚动量存的越多速度越快
-    int mul = qAbs(remainingScroll)/scrollSpeed;
-    int step = scrollStep + mul*scrollStep;
-
-    // 保持滚动方向（剩余量为正--下滚， 负--上滚）
-    if(remainingScroll<0) step = -step;
-
-    // 更新原生滚动条的vlue（驱动视图滚动）
-    if(nativeVsb){
-        int newVlue = nativeVsb->value() + step;
-        newVlue = qMax(nativeVsb->minimum(), qMin(nativeVsb->maximum(),newVlue));
-        nativeVsb->setValue(newVlue);
+    
+    int mul = qAbs(remainingScroll) / scrollSpeed;
+    int step = scrollStep + mul * scrollStep;
+    
+    if (remainingScroll < 0) step = -step;
+    
+    if (nativeVsb) {
+        int newValue = nativeVsb->value() + step;
+        newValue = qMax(nativeVsb->minimum(), qMin(nativeVsb->maximum(), newValue));
+        nativeVsb->setValue(newValue);
     }
-
-    // 减少剩余滚动量
+    
     remainingScroll -= step;
-    if(qAbs(remainingScroll) < scrollStep) remainingScroll = 0;
+    if (qAbs(remainingScroll) < scrollStep) remainingScroll = 0;
 }
 
-void CustomListView::setMarginRight(int value)
+void CustomTreeView::setMarginRight(int value)
 {
     marginRight = value;
+    updateScrollBarPosition();
 }
-
-
-

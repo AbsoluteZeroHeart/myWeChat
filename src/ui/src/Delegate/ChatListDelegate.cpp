@@ -90,8 +90,12 @@ void ChatListDelegate::paint(QPainter *painter, const QStyleOptionViewItem
     ThumbnailResourceManager* thumbnailManager = ThumbnailResourceManager::instance();
     painter->setRenderHint(QPainter::Antialiasing,true);
 
-    QPixmap avatar = thumbnailManager->getThumbnail(avatarPath, QSize(avatarSize, avatarSize));
-     if(!avatar.isNull()) {
+    QPixmap avatar = QPixmap();
+    if(QFileInfo::exists(avatarPath)){
+        avatar = thumbnailManager->getThumbnail(avatarPath, QSize(avatarSize, avatarSize));
+    }
+
+    if(!avatar.isNull()) {
         painter->drawPixmap(avatarRect, avatar);
     } else {
         drawDefaultAvatar(painter, avatarRect, name, 5);

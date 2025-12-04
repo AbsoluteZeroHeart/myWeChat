@@ -618,10 +618,13 @@ void ChatMessageDelegate::paintAvatar(QPainter *painter, const QRect &avatarRect
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    QPixmap avatarPixmap = thumbnailManager->getThumbnail(message.avatar,
+    QPixmap avatarPixmap = QPixmap();
+    if(QFileInfo::exists(message.avatar)){
+        avatarPixmap = thumbnailManager->getThumbnail(message.avatar,
                                                  avatarRect.size(), 
                                                  MediaType::Avatar, 5);
-    
+    }
+
     if(!avatarPixmap.isNull()) {
         painter->drawPixmap(avatarRect, avatarPixmap);
     } else {

@@ -73,7 +73,10 @@ void ContactItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
     ThumbnailResourceManager* mediaManager = ThumbnailResourceManager::instance();
     painter->setRenderHint(QPainter::Antialiasing,true);
 
-    QPixmap avatar = mediaManager->getThumbnail(contact.user.avatarLocalPath, QSize(avatarSize, avatarSize));
+    QPixmap avatar = QPixmap();
+    if(QFileInfo::exists(contact.user.avatarLocalPath)){
+        avatar = mediaManager->getThumbnail(contact.user.avatarLocalPath, QSize(avatarSize, avatarSize));
+    }
 
     if(!avatar.isNull()) {
         painter->drawPixmap(avatarRect, avatar);

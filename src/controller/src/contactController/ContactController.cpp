@@ -174,6 +174,7 @@ void ContactController::getCurrentUser()
     }
     int reqId = generateReqId();
 
+    qDebug()<<"获取当前用户";
     m_pendingUpdates[reqId] = "getCurrentUser";
     emit getCurrentUserRequested(reqId);
 }

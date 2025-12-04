@@ -23,7 +23,6 @@ struct MediaItem {
         , mediaType(type)
         , messageId(msgId)
         , timestamp(time)
-        // , thumbnailLoaded(false)
     {}
 
     static MediaItem fromSqlQuery(const QSqlQuery& query) {

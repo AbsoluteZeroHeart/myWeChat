@@ -13,10 +13,10 @@ public:
 
 
 public slots:
-    void init();
+    bool init();
 
     // 当前用户管理
-    void saveCurrentUser(int reqId, const User &user);
+    bool saveCurrentUser(int reqId, const User &user);
     void getCurrentUser(int reqId);
     void updateCurrentUser(int reqId, const User &user);
     void clearCurrentUser(int reqId);

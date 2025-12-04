@@ -34,11 +34,11 @@ void UserInfoWidget::setSelectedContact(const Contact &contact)
     connect(thumbnailManager, &ThumbnailResourceManager::mediaLoaded, this,
         [this, thumbnailManager](const QString& resourcePath, const QPixmap& media, MediaType type){
         QPixmap avatar = thumbnailManager->getThumbnail(m_contact.user.avatarLocalPath,
-                                                QSize(500, 500), MediaType::Avatar,0);
+                                                QSize(500, 500), MediaType::Avatar,0, m_contact.remarkName);
         avatarLabel ->setPixmap(avatar);
     });
     QPixmap avatar = thumbnailManager->getThumbnail(m_contact.user.avatarLocalPath,
-                                            QSize(500, 500), MediaType::Avatar,0);
+                                            QSize(500, 500), MediaType::Avatar,0,"",m_contact.remarkName);
     avatarLabel ->setPixmap(avatar);
 
     remarkNameLable->setText(m_contact.remarkName);

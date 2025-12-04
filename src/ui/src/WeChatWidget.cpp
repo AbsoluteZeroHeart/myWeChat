@@ -37,6 +37,7 @@
 
 
 
+
 WeChatWidget::WeChatWidget(AppController * appController, QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::WeChatWidget)
@@ -111,7 +112,7 @@ WeChatWidget::WeChatWidget(AppController * appController, QWidget *parent)
                 ui->rightStackedWidget->setCurrentWidget(ui->rightStackedWidgetPage0);
                 ui->rightStackedWidgetPage0->show();
 
-                messageController->setCurrentConversationId(currentConversation.conversationId);
+                messageController->setCurrentConversation(currentConversation);
                 conversationController->setCurrentConversationId(currentConversation.conversationId);
                 QTimer::singleShot(100, this, [=]() {
                     if (chatMessageListView != nullptr && !chatMessageListView->isHidden()) {
@@ -238,6 +239,8 @@ WeChatWidget::WeChatWidget(AppController * appController, QWidget *parent)
     connect(contactController, &ContactController::currentUserLoaded, this,
         [this](int reqId, const Contact& contact){
             currentUser = contact;
+            userController->setCurrentUser(contact.user);
+            messageController->setCurrentUser(1,contact.user);
             ThumbnailResourceManager* thumbnailManager = ThumbnailResourceManager::instance();
             connect(thumbnailManager, &ThumbnailResourceManager::mediaLoaded, this,
                 [this,thumbnailManager](const QString& resourcePath, const QPixmap& media, MediaType type){
@@ -661,15 +664,17 @@ void WeChatWidget::on_rightDialogToolButton_clicked()
         QString avatarLocalPath = currentConversation.avatarLocalPath;
         ThumbnailResourceManager* mediaManager = ThumbnailResourceManager::instance();
         connect(mediaManager, &ThumbnailResourceManager::mediaLoaded,
-            this, [this,avatarLocalPath](const QString& resourcePath, const QPixmap& media, MediaType type){
+            this, [this,mediaManager,avatarLocalPath](const QString& resourcePath, const QPixmap& media, MediaType type){
             if(avatarLocalPath == resourcePath && type == MediaType::Avatar){
                 if(rightPopover){
+                    QPixmap friendAvatar = mediaManager->getThumbnail(avatarLocalPath, QSize(40, 40));
                     rightPopover->findChild<QPushButton*>("rightAvatarButton")
-                    ->setIcon(QIcon(media));
+                        ->setIcon(QIcon(friendAvatar));
                 }
             }
         });
-        QPixmap friendAvatar = mediaManager->getThumbnail(avatarLocalPath, QSize(40, 40));
+        QPixmap friendAvatar = mediaManager->getThumbnail(avatarLocalPath, QSize(40, 40),
+                                                          MediaType::Avatar, 5,"", currentConversation.title);
         rightPopover->findChild<QPushButton*>("rightAvatarButton")
             ->setIcon(QIcon(friendAvatar));
 
@@ -781,6 +786,7 @@ void WeChatWidget::on_avatarPushButton_clicked()
         QPoint btnGlobalPos = btn->mapToGlobal(QPoint(0,0));
         currentUserInfoDialog->showAtPos(QPoint(btnGlobalPos.x()+btn->width(), btnGlobalPos.y()));
     }
+    contactController->getCurrentUser();// 点击头像按钮主动加载当前用户；
 }
 
 

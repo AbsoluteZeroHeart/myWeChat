@@ -6,6 +6,7 @@
 #include <QHash>           // 哈希表存储键值对
 #include <QTimer>
 #include <QMap>            // 有序映射表
+#include "Conversation.h"
 #include "DatabaseManager.h"
 #include "ChatMessagesModel.h"
 #include "Message.h"
@@ -29,12 +30,14 @@ public:
     explicit MessageController(DatabaseManager* dbManager, QObject* parent = nullptr); // 构造函数
     ~MessageController(); // 析构函数
 
+    // 保存好友发来的消息----------------------
+    void saveMessage(Message msg);
     // 获取属性值
     ChatMessagesModel* messagesModel() const { return m_messagesModel; }
-    qint64 currentConversationId() const { return m_currentConversationId; }
+    qint64 currentConversationId() const { return m_currentConversation.conversationId; }
 
     // 异步操作：会话管理、消息发送/处理等
-    void setCurrentConversationId(qint64 conversationId); // 设置当前会话
+    void setCurrentConversation(Conversation conversation); // 设置当前会话
     void setCurrentUser(int reqId, User user);            // 设置当前用户
 
     void sendTextMessage(const QString& content);         // 发送文本消息
@@ -54,7 +57,7 @@ public:
                          const QString &targetPath,
                          const QString &errorMessage);    // 发送文件消息
 
-    void sendVoiceMessage(const QString& filePath, int duration);           // 发送语音消息
+    void sendVoiceMessage(const QString& filePath, int duration);   // 发送语音消息
 
     void preprocessImageBeforeSend(QStringList pathList);
     void preprocessFileBeforeSend(QStringList fileList);
@@ -64,17 +67,18 @@ public:
     void loadMoreMessages(int limit = 20);        // 加载更多历史消息
     void getMediaItems(qint64 conversationId);    // 获取会话中所有媒体项
 
-    // UI操作
-    Q_INVOKABLE void handleCopy(const Message &message); // 处理消息复制
-    Q_INVOKABLE void handleZoom();        // 处理图片/视频缩放
-    Q_INVOKABLE void handleTranslate();   // 处理消息翻译
-    Q_INVOKABLE void handleSearch();      // 处理消息搜索
-    Q_INVOKABLE void handleForward();     // 处理消息转发
-    Q_INVOKABLE void handleFavorite();    // 处理消息收藏
-    Q_INVOKABLE void handleRemind();      // 处理消息提醒
-    Q_INVOKABLE void handleMultiSelect(); // 处理消息多选
-    Q_INVOKABLE void handleQuote();       // 处理消息引用
-    Q_INVOKABLE void handleDelete(const Message &message); // 处理消息删除
+public slots:
+    // 处理UI操作
+    void handleCopy(const Message &message); // 处理消息复制
+    void handleZoom();        // 处理图片/视频缩放
+    void handleTranslate();   // 处理消息翻译
+    void handleSearch();      // 处理消息搜索
+    void handleForward();     // 处理消息转发
+    void handleFavorite();    // 处理消息收藏
+    void handleRemind();      // 处理消息提醒
+    void handleMultiSelect(); // 处理消息多选
+    void handleQuote();       // 处理消息引用
+    void handleDelete(const Message &message); // 处理消息删除
 
 signals:
     // 操作结果信号
@@ -83,6 +87,8 @@ signals:
     void messagesLoaded(const QList<Message>& messages, bool hasMore);   // 消息列表加载结果
     void mediaItemsLoaded(const QList<MediaItem>& items);                // 媒体项加载结果
 
+    // -测试模拟发消息------------------------
+    void send(QVector<Message> messages);
 
 
 private slots:
@@ -96,7 +102,7 @@ private slots:
 private:
     int generateReqId();   // 生成唯一请求ID
     void connectSignals(); // 连接信号槽
-    Message createMessage(qint64 conversationId,
+    Message createMessage(const Conversation &conversation,
                           MessageType type,
                           const QString& content = QString(),
                           const QString& filePath = QString(),
@@ -113,7 +119,7 @@ private:
     ChatMessagesModel* m_messagesModel; // 消息模型（UI展示用）
     QAtomicInteger<int> reqIdCounter;   // 请求ID计数器（线程安全）
 
-    qint64 m_currentConversationId; // 当前会话ID
+    Conversation m_currentConversation; // 当前会话
     User currentUser;  // 当前登录用户
     bool loading;      // 加载状态标记
     int currentOffset; // 消息加载偏移量（分页用）
